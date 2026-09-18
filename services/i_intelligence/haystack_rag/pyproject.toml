@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dxlab-haystack-rag"
+version = "0.1.0"
+description = "DX-LAB Intelligence Layer - Haystack RAG Service"
+readme = "README.md"
+authors = [{ name = "DX-LAB Development Team" }]
+license = { text = "AGPL-3.0" }
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn>=0.28.0",
+    "pydantic>=2.6.0",
+    "haystack-ai>=2.0.0",
+    "qdrant-haystack>=3.0.0",
+    "qdrant-client>=1.8.0",
+    "requests>=2.31.0",
+    "psycopg2-binary>=2.9.9",
+]

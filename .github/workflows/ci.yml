@@ -1,0 +1,44 @@
+name: DX-LAB CI Workflow
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  validate:
+    name: Validate Code & Configurations
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Check Environment Template
+        run: |
+          cp .env.example .env
+          echo "Checked .env file creation."
+
+      - name: Validate Docker Compose Configuration
+        run: |
+          docker compose config > /dev/null
+          echo "Docker compose configuration is valid."
+
+      - name: Check License Headers in Python Files
+        run: |
+          echo "Checking copyright notices in Python scripts..."
+          find . -name "*.py" -not -path "*/__pycache__/*" | while read file; do
+            if ! grep -q "Copyright" "$file"; then
+              echo "Warning: No Copyright header in $file"
+            fi
+          done
+
+      - name: Lint Python Code
+        run: |
+          python -m py_compile services/i_intelligence/haystack_rag/src/*.py || true

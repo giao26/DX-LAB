@@ -1,0 +1,53 @@
+==============================================================================
+DX-LAB (DX-OS) - Digital Transformation Operating System
+Copyright (C) 2026 DX-LAB Development Team
+==============================================================================
+
+1. MỤC ĐÍCH CẤP PHÉP VÀ THÔNG BÁO BẢN QUYỀN (PURPOSE OF LICENSE):
+   Dự án DX-LAB (Hệ điều hành doanh nghiệp số - DX-OS) được phát hành theo các điều
+   khoản của Giấy phép Công cộng GNU Affero (GNU Affero General Public License)
+   phiên bản 3 (AGPLv3), được phê chuẩn bởi Sáng kiến Mã nguồn Mở (OSI - Open Source Initiative).
+
+   Mục đích của việc lựa chọn giấy phép AGPLv3 nhằm đảm bảo:
+   - Quyền tự do tiếp cận, sử dụng, nghiên cứu mã nguồn của người dùng và cộng đồng.
+   - Tính kế thừa và tính mở của các phần mềm dạng dịch vụ mạng (Network Server Software).
+   - Đảm bảo rằng mọi cải tiến, sửa đổi hoặc mở rộng khi được cung cấp qua môi trường mạng
+     đều phải được công khai mã nguồn tương ứng theo giấy phép mở.
+
+2. CÁC THÀNH PHẦN NGUỒN MỞ BÊN THỨ BA VÀ TÍNH TƯƠNG THÍCH (THIRD-PARTY COMPONENTS):
+   Dự án tích hợp và điều phối các công nghệ nguồn mở hàng đầu, với tính tương thích
+   giấy phép được bảo toàn nghiêm ngặt theo các quy định OSI:
+
+   - Odoo Community Edition:
+     Copyright (C) Odoo S.A.
+     Giấy phép: GNU Lesser General Public License v3 (LGPL-3.0)
+     Tương thích: Điều 13 AGPLv3 cho phép liên kết và phân phối tương thích với LGPLv3.
+
+   - Node-RED:
+     Copyright OpenJS Foundation and other contributors, https://openjsf.org/
+     Giấy phép: Apache License 2.0
+     Tương thích: Giấy phép Apache 2.0 tương thích với GPLv3/AGPLv3 khi phân phối tổng thể.
+
+   - PostgreSQL:
+     Copyright (C) 1996-2026 The PostgreSQL Global Development Group
+     Giấy phép: The PostgreSQL Licence (OSI-approved, Permissive)
+
+   - Apache Superset:
+     Copyright (C) The Apache Software Foundation
+     Giấy phép: Apache License 2.0
+
+   - Qdrant Vector Database:
+     Copyright (C) Qdrant Solutions GmbH
+     Giấy phép: Apache License 2.0
+
+   - Haystack RAG Framework:
+     Copyright (C) deepset GmbH
+     Giấy phép: Apache License 2.0
+
+   - Ollama:
+     Copyright (C) Ollama contributors
+     Giấy phép: MIT License (OSI-approved, Permissive)
+
+3. LIÊN HỆ VÀ ĐÓNG GÓP:
+   Mọi chi tiết đóng góp và báo cáo lỗi xin gửi qua hệ thống Issue Tracker
+   trên kho mã nguồn chính thức của dự án.

@@ -1,0 +1,22 @@
+# ==============================================================================
+# DX-LAB (DX-OS) - Ollama Custom Modelfile
+# Copyright (C) 2026 DX-LAB Development Team
+# License: AGPL-3.0
+# ==============================================================================
+
+FROM qwen2.5:7b
+
+# Cấu hình nhiệt độ suy luận (temperature) tối ưu hóa cho hỏi đáp quy trình chính xác
+PARAMETER temperature 0.2
+PARAMETER top_p 0.9
+PARAMETER stop "<|im_end|>"
+PARAMETER stop "<|endoftext|>"
+
+# System Prompt định vị trợ lý DX-OS
+SYSTEM """
+Bạn là Trợ lý Doanh Nghiệp Số DX-OS (DX-LAB Intelligence Assistant).
+Nhiệm vụ của bạn là hỗ trợ nhân viên giải đáp các quy trình, tài liệu, chính sách
+và phân tích báo cáo doanh nghiệp một cách trung thực, ngắn gọn và chính xác.
+Luôn căn cứ vào tài liệu ngữ cảnh được cung cấp để trả lời. Nếu không chắc chắn,
+hãy nói rõ bạn chưa tìm thấy thông tin trong cơ sở tri thức thay vì tự suy đoán.
+"""

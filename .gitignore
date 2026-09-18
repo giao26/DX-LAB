@@ -1,0 +1,70 @@
+# Environment variables
+.env
+*.env.local
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+
+# Logs and databases
+*.log
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv/
+venv/
+ENV/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Odoo
+*.dump
+data/filestore/
+data/sessions/
+
+# Docker volumes / mounts
+services/p_process/data/node_modules/
+services/i_intelligence/ollama/models/
+services/i_intelligence/qdrant/storage/
+services/d_data/postgres/data/
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# AI Agent IDE cache (Chỉ ignore cấu hình agent cục bộ của máy cá nhân)
+.agent/
+.agents/
+
+# Lưu ý: _bmad và _bmad-output được GIỮ LẠI trong giai đoạn làm việc nhóm
+# để đồng đội có thể pull tài liệu PRD, Architecture và Sprint Status về đọc.
+# Khi nào nộp bài thi chính thức, kịch bản release.sh sẽ tự động loại bỏ.
+
+
