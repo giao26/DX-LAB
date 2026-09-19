@@ -1,69 +1,98 @@
-# Thuyết Minh Kiến Trúc Hệ Điều Hành Doanh Nghiệp Số (DX-OS / DX-LAB)
-## Mô Hình Kiến Trúc 4 Tầng H-P-D-I
+# Kiến trúc hệ điều hành doanh nghiệp số DX-LAB
 
-Dự án DX-LAB kế thừa và tích hợp các công nghệ nguồn mở hàng đầu nhằm xây dựng một **Hệ điều hành doanh nghiệp số (DX-OS)** hoàn chỉnh theo mô hình **H-P-D-I**:
+> **Nguồn chuẩn:** [Architecture Spine](../../_bmad-output/planning-artifacts/architecture/architecture-DX-LAB-2026-09-19/ARCHITECTURE-SPINE.md). Khi tài liệu này khác với Architecture Spine, Architecture Spine được ưu tiên.
 
+## 1. Trạng thái tài liệu
+
+Repository hiện là một **brownfield skeleton**. Một số thư mục và cấu hình vẫn phản ánh kiến trúc thử nghiệm cũ, trong đó Node-RED nằm tại `services/p_process` và nhiều dịch vụ mở cổng trực tiếp. Đây không phải kiến trúc đích và không được dùng làm căn cứ để bổ sung nghiệp vụ mới.
+
+Story 1.1 và 1.2 sẽ chuyển skeleton sang cấu trúc chuẩn được mô tả dưới đây.
+
+## 2. Nguyên tắc kiến trúc
+
+DX-LAB dùng kiến trúc lục giác cho lõi quy trình và tích hợp hướng sự kiện:
+
+```mermaid
+flowchart TB
+    B[Trình duyệt] --> C[Caddy]
+    C --> W[Web / BFF]
+    C --> O[Odoo]
+    C --> K[Keycloak]
+    W --> P[Lõi P - TypeScript / Fastify]
+    O --> P
+    P --> DB[(PostgreSQL của P)]
+    P --> OB[(Transactional outbox)]
+    OB --> N[Node-RED]
+    N --> O
+    P --> I[Dịch vụ I - Haystack]
+    I --> Q[(Qdrant)]
+    I --> L[Ollama]
+    P --> RV[(Reporting views / snapshots)]
+    RV --> S[Superset]
 ```
-+-------------------------------------------------------------+
-|               H - HUMAN LAYER (Odoo Community)              |
-|        Employee  |  User  |  Role & Access  |  Knowledge     |
-+------------------------------+------------------------------+
-                               | REST / JSON-RPC API
-                               v
-+-------------------------------------------------------------+
-|             P - PROCESS LAYER (Node-RED Engine)             |
-|        Workflow  |  Data Validation  |  Event Automation    |
-+------------------------------+------------------------------+
-                               | Event Stream / CDC / SQL
-                               v
-+-------------------------------------------------------------+
-|             D - DATA & ANALYTICS LAYER                      |
-|       PostgreSQL (Core Relational)  +  Apache Superset (BI) |
-+------------------------------+------------------------------+
-                               | Document & Knowledge Sync
-                               v
-+-------------------------------------------------------------+
-|             I - INTELLIGENCE LAYER                          |
-|    Qdrant (Vector DB) + Haystack (RAG) + Ollama (Local LLM) |
-+-------------------------------------------------------------+
-```
 
----
+- Chỉ command của P được thay đổi ticket, phân công, bước quy trình, SLA, CSAT, khuyến nghị và vòng đời SOP.
+- Tích hợp chỉ gọi API của P hoặc phản ứng với sự kiện đã commit; không thành phần nào ghi trực tiếp bảng riêng của P.
+- Hợp đồng OpenAPI và JSON Schema trong `contracts/` là nguồn giao diện duy nhất sau khi Story 1.1 tạo cấu trúc này.
+- Caddy là điểm vào công khai duy nhất. Các API đặc quyền và dịch vụ dữ liệu nằm trong mạng riêng.
 
-## 1. Tầng H (Human / ERP Layer): Odoo Community
-- **Trọng tâm**: Quản trị định danh và nguồn lực con người trong doanh nghiệp.
-- **Thành phần**:
-  - `Employee`: Quản lý hồ sơ nhân viên, phòng ban, chức vụ.
-  - `User`: Tài khoản định danh người dùng đăng nhập hệ thống.
-  - `Role`: Phân quyền RBAC (Role-Based Access Control) cho từng nhóm nghiệp vụ.
-  - `Knowledge`: Cung cấp cơ sở tri thức nội bộ, văn bản và tài liệu chính sách.
-- **Giao tiếp**: Cung cấp JSON-RPC và RESTful API để tầng P truy vấn và đồng bộ sự kiện người dùng.
+## 3. Trách nhiệm các không gian H–P–D–I
 
----
+### H — Con người và môi trường làm việc
 
-## 2. Tầng P (Process / Workflow Layer): Node-RED
-- **Trọng tâm**: Điều phối các luồng nghiệp vụ kinh doanh tự động và phi tập trung.
-- **Thành phần**:
-  - `Workflow Engine`: Thiết lập luồng phê duyệt, luồng xử lý văn bản và tác vụ doanh nghiệp qua giao diện trực quan dạng flow.
-  - `Validation`: Kiểm tra tính toàn vẹn dữ liệu từ tầng H trước khi ghi nhận xuống cơ sở dữ liệu.
-  - `Automation`: Kích hoạt các tác vụ định kỳ, thông báo tức thời và chuyển tiếp sự kiện giữa các tầng.
-- **Giao tiếp**: Nhận webhook từ Odoo, xử lý và đẩy dữ liệu chuẩn hóa xuống PostgreSQL (Tầng D).
+Odoo Community cung cấp giao diện làm việc của nhân viên, nhắn tin và duyệt bản nháp SOP. Odoo chỉ lưu projection tối thiểu và tham chiếu tích hợp. Mọi hành động nghiệp vụ gọi command của P; chỉ P ghi nhận phê duyệt và xuất bản.
 
----
+Keycloak là nhà phát hành danh tính OIDC duy nhất. P kiểm tra vai trò, nhóm và quyền trên từng tài nguyên. Nhân viên chỉ xem ticket thuộc nhóm và chịu trách nhiệm với ticket đã nhận; trưởng phòng và giám đốc có phạm vi được cấp rõ ràng.
 
-## 3. Tầng D (Data & Analytics Layer): PostgreSQL & Apache Superset
-- **Trọng tâm**: Lưu trữ dữ liệu quan hệ tập trung và cung cấp năng lực khai phá dữ liệu (Business Intelligence).
-- **Thành phần**:
-  - `PostgreSQL 16`: Kho dữ liệu quan hệ ACID chuẩn mực, lưu trữ thông tin thực thể, lịch sử giao dịch và logs.
-  - `Apache Superset`: Nền tảng phân tích trực quan hóa dữ liệu (Dashboard, biểu đồ KPI, báo cáo năng suất doanh nghiệp) kết nối trực tiếp với PostgreSQL.
-- **Giao tiếp**: Cung cấp dữ liệu báo cáo cho người dùng quản lý, đồng thời cung cấp dữ liệu văn bản và tài liệu để đồng bộ sang Tầng I phục vụ tra cứu ngữ nghĩa.
+### P — Lõi quy trình nghiệp vụ
 
----
+`services/p_process` sẽ chứa lõi TypeScript/Fastify theo kiến trúc lục giác. Lõi này sở hữu:
 
-## 4. Tầng I (Intelligence / AI Layer): Qdrant + Haystack + Ollama
-- **Trọng tâm**: Trí tuệ nhân tạo bảo mật, cục bộ (On-premise AI) hỗ trợ người lao động và tối ưu hóa vận hành.
-- **Thành phần**:
-  - `Qdrant`: Cơ sở dữ liệu vector tốc độ cao, lưu trữ và tìm kiếm vector tương đồng cho các tài liệu tri thức doanh nghiệp.
-  - `Haystack AI`: Framework điều phối chu trình RAG (Retrieval-Augmented Generation), kết hợp giữa câu hỏi người dùng, dữ liệu liên quan từ Qdrant và mô hình ngôn ngữ.
-  - `Ollama`: Runtime suy luận mô hình ngôn ngữ lớn (Local LLMs như Qwen 2.5, Llama 3) chạy hoàn toàn nội bộ, không phụ thuộc cloud API bên ngoài và bảo mật 100% dữ liệu nhạy cảm.
-- **Giao tiếp**: Cung cấp API endpoint phục vụ hỏi đáp tri thức (`/api/v1/ask`) cho Odoo và Node-RED.
+- xác thực đầu vào và các bất biến nghiệp vụ;
+- phân công công bằng, chuyển trạng thái và SLA theo giờ làm việc;
+- CSAT, khuyến nghị, duyệt và xuất bản SOP;
+- outbox giao dịch, audit log, reporting view và snapshot hằng ngày;
+- vòng đời bất đồng bộ của công việc AI.
+
+`services/p_automation` sẽ chứa Node-RED. Node-RED chỉ lập lịch và chuyển giao tích hợp; không chứa quy tắc nghiệp vụ, không quyết định trạng thái và không ghi bảng của P.
+
+### D — Dữ liệu và phân tích
+
+PostgreSQL có cơ sở dữ liệu và tài khoản tối thiểu riêng cho P, Odoo, Keycloak và metadata Superset. P sở hữu schema chuẩn, reporting view có phiên bản và snapshot hằng ngày. Superset chỉ đọc tập dữ liệu báo cáo đã giới hạn phạm vi; bộ lọc giao diện không thay thế kiểm soát quyền.
+
+### I — Trí tuệ hỗ trợ quyết định
+
+Haystack điều phối phân loại và phân tích bằng Qdrant và Ollama. I chỉ nhận dữ liệu đã giảm thiểu hoặc che thông tin theo mục đích. I trả đề xuất có kiểu dữ liệu và bằng chứng; không được đổi ticket, gửi thông báo, phê duyệt hay xuất bản SOP.
+
+P quản lý trạng thái công việc AI gồm `QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`, `EXPIRED` và `SUPERSEDED`. Nhân viên xác nhận phân loại trước khi thay đổi có hiệu lực; giám đốc quyết định có áp dụng khuyến nghị hay không.
+
+## 4. Luồng tích hợp chuẩn
+
+1. Web hoặc Odoo gửi command đã xác thực tới P.
+2. P kiểm tra quyền và bất biến, rồi ghi thay đổi cùng sự kiện outbox trong một giao dịch.
+3. Worker của P chuyển sự kiện đã commit tới webhook Node-RED có phiên bản.
+4. Node-RED chuyển sự kiện tới endpoint Odoo có phiên bản.
+5. Odoo ghi durable inbox cùng projection rồi trả `2xx`; phản hồi này được chuyển lại làm xác nhận giao hàng.
+6. Consumer khử trùng bằng `event_id`, bỏ qua phiên bản cũ và yêu cầu đồng bộ lại khi phát hiện khoảng trống phiên bản.
+
+## 5. Ranh giới triển khai và bảo mật
+
+- Web/BFF dùng phiên đăng nhập dạng cookie `Secure`, `HttpOnly`, `SameSite=Lax` chỉ chứa mã phiên mờ đã ký; token tái sử dụng nằm phía máy chủ. Mọi mutation xác thực bằng cookie phải chống CSRF.
+- Odoo dùng OAuth 2.0 Token Exchange cho hành động của người dùng; tác vụ máy dùng client credentials.
+- PostgreSQL, API nội bộ P, Node-RED editor, Superset admin, Keycloak admin, Qdrant, Ollama và I không mở trực tiếp ra mạng công khai.
+- Không dùng mật khẩu mặc định, wildcard CORS, tag `latest`, model alias trôi nổi hoặc image chưa ghim digest trong bản phát hành.
+- Log không chứa nội dung khách hàng, thân tệp, token hoặc prompt.
+
+## 6. Chuyển đổi từ skeleton hiện tại
+
+Story 1.1–1.2 phải thực hiện theo thứ tự:
+
+1. Lập inventory schema, dữ liệu, chủ sở hữu và phụ thuộc của skeleton trước khi di chuyển.
+2. Di chuyển tài sản Node-RED từ `services/p_process` sang `services/p_automation`.
+3. Tạo lõi Fastify tại `services/p_process`, cùng `apps/web`, `contracts/` và `infra/`.
+4. Chuyển schema được giữ lại bằng migration P có phiên bản và kiểm thử; không tạo sớm bảng ticket, phân công, workflow, CSAT hoặc SOP trước story sở hữu nhu cầu đó.
+5. Tách database/user, mạng và profile Compose; bổ sung Caddy và Keycloak.
+6. Nâng Node-RED và Superset theo phiên bản seed đã xác minh.
+7. Sinh lockfile, ghim image digest, OCA commit và model manifest trước khi chấp nhận phát hành.
+
+Danh sách phiên bản seed và bằng chứng cần khóa nằm trong [Technology Sources](../../_bmad-output/planning-artifacts/architecture/architecture-DX-LAB-2026-09-19/TECHNOLOGY-SOURCES.md).
