@@ -9,6 +9,10 @@
 -- License: AGPL-3.0
 -- =============================================================================
 
+-- Database for Keycloak IAM (AD-4, AD-5)
+SELECT 'CREATE DATABASE dxlab_keycloak'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'dxlab_keycloak')\gexec
+
 CREATE SCHEMA IF NOT EXISTS dx_core;
 
 -- Table 1: Immutable Audit Logs (AD-12)

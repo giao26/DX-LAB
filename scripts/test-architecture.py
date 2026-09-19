@@ -10,6 +10,7 @@ import os
 import sys
 import re
 import json
+import subprocess
 from pathlib import Path
 
 # Paths to ignore during global scans
@@ -367,8 +368,79 @@ class ArchitectureChecker:
 
         self.log_pass("Contracts (OpenAPI 3.1 YAML and JSON Schema Draft 2020-12) validated")
 
+    def parse_compose(self, compose_content: str):
+        services = {}
+        networks = []
+        volumes = []
+        current_section = None
+        current_svc = None
+        current_key = None
+
+        for line in compose_content.splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith('#'):
+                continue
+
+            m_root = re.match(r'^([a-zA-Z_-]+):\s*$', line)
+            if m_root:
+                current_section = m_root.group(1)
+                current_svc = None
+                current_key = None
+                continue
+
+            if current_section == 'services':
+                m_svc = re.match(r'^  ([a-zA-Z0-9_-]+):\s*$', line)
+                if m_svc:
+                    current_svc = m_svc.group(1)
+                    services[current_svc] = {
+                        'profiles': [],
+                        'ports': [],
+                        'networks': [],
+                        'image': None,
+                        'build_context': None
+                    }
+                    current_key = None
+                    continue
+
+                if current_svc:
+                    m_key = re.match(r'^    ([a-zA-Z0-9_-]+):\s*(.*)$', line)
+                    if m_key:
+                        current_key = m_key.group(1)
+                        val = m_key.group(2).strip()
+                        if current_key == 'image' and val:
+                            services[current_svc]['image'] = val.strip('\"\'')
+                        elif current_key == 'build' and val:
+                            services[current_svc]['build_context'] = val.strip('\"\'')
+                        elif current_key in ['profiles', 'ports', 'networks'] and val.startswith('[') and val.endswith(']'):
+                            items = [x.strip().strip('\"\'') for x in val[1:-1].split(',') if x.strip()]
+                            services[current_svc][current_key].extend(items)
+                        continue
+
+                    m_build_ctx = re.match(r'^      context:\s*(.*)$', line)
+                    if m_build_ctx and current_key == 'build':
+                        services[current_svc]['build_context'] = m_build_ctx.group(1).strip().strip('\"\'')
+                        continue
+
+                    m_item = re.match(r'^      -\s*(.*)$', line)
+                    if m_item and current_key in ['profiles', 'ports', 'networks']:
+                        item_val = m_item.group(1).strip().strip('\"\'')
+                        services[current_svc][current_key].append(item_val)
+                        continue
+
+            elif current_section == 'networks':
+                m_net = re.match(r'^  ([a-zA-Z0-9_-]+):\s*$', line)
+                if m_net:
+                    networks.append(m_net.group(1))
+
+            elif current_section == 'volumes':
+                m_vol = re.match(r'^  ([a-zA-Z0-9_-]+):\s*$', line)
+                if m_vol:
+                    volumes.append(m_vol.group(1))
+
+        return services, networks, volumes
+
     def check_docker_compose(self):
-        """Verifies docker-compose.yml configuration."""
+        """Verifies docker-compose.yml profiles, single ingress, network isolation, and pinned images (AD-11, AR-14, AR-25)."""
         compose_path = self.root_dir / 'docker-compose.yml'
         if not compose_path.exists():
             self.log_error("MISSING_FILE", "docker-compose.yml not found")
@@ -377,13 +449,219 @@ class ArchitectureChecker:
         with open(compose_path, 'r', encoding='utf-8') as f:
             compose_content = f.read()
 
-        if './services/p_automation' not in compose_content:
-            self.log_error("INVALID_COMPOSE", "docker-compose.yml: node-red service must point to ./services/p_automation")
+        services, networks, volumes = self.parse_compose(compose_content)
 
-        if 'ollama/ollama:0.34.2' not in compose_content:
-            self.log_error("INVALID_COMPOSE", "docker-compose.yml: ollama service must use pinned image ollama/ollama:0.34.2")
+        # 1. Check required services existence
+        required_services = [
+            'postgres', 'p-process', 'caddy', 'keycloak',
+            'odoo', 'node-red', 'superset', 'mailpit',
+            'qdrant', 'ollama', 'haystack-rag'
+        ]
+        for req_svc in required_services:
+            if req_svc not in services:
+                self.log_error("MISSING_SERVICE", f"docker-compose.yml missing required service '{req_svc}'")
 
-        self.log_pass("docker-compose.yml service paths and image pins validated")
+        # 2. Check profile segregation (AR-14, AC 2)
+        # Profile core MUST only run p-process, postgres, and test doubles; NEVER odoo, superset, node-red, ollama
+        forbidden_in_core = ['odoo', 'superset', 'node-red', 'ollama', 'qdrant', 'haystack-rag']
+        for fn in forbidden_in_core:
+            if fn in services and 'core' in services[fn]['profiles']:
+                self.log_error("FORBIDDEN_PROFILE_SERVICE", f"Service '{fn}' has profile 'core' which violates AR-14 / Story 1.2 AC 2")
+
+        if 'p-process' in services and 'core' not in services['p-process']['profiles']:
+            self.log_error("INVALID_PROFILE", "Service 'p-process' must have 'core' profile")
+
+        if 'postgres' in services and 'core' not in services['postgres']['profiles']:
+            self.log_error("INVALID_PROFILE", "Service 'postgres' must have 'core' profile")
+
+        # Profile demo MUST include Caddy, Keycloak, Odoo, Node-RED, Superset
+        demo_services = ['caddy', 'keycloak', 'odoo', 'node-red', 'superset', 'mailpit']
+        for ds in demo_services:
+            if ds in services and 'demo' not in services[ds]['profiles']:
+                self.log_error("INVALID_PROFILE", f"Service '{ds}' must belong to profile 'demo'")
+
+        # Profile ai MUST include Qdrant, Ollama, Haystack
+        ai_services = ['qdrant', 'ollama', 'haystack-rag']
+        for asvc in ai_services:
+            if asvc in services and 'ai' not in services[asvc]['profiles']:
+                self.log_error("INVALID_PROFILE", f"Service '{asvc}' must belong to profile 'ai'")
+
+        # 3. Hardened ingress check (AD-11): Only Caddy may publish host ports
+        for svc_name, svc_info in services.items():
+            if svc_name == 'caddy':
+                if not svc_info['ports']:
+                    self.log_error("MISSING_INGRESS_PORTS", "Caddy service must publish public ports 80 and 443")
+            else:
+                if svc_info['ports']:
+                    self.log_error(
+                        "PUBLIC_PORT_LEAK",
+                        f"Internal service '{svc_name}' exposes host ports {svc_info['ports']}, violating AD-11 (only Caddy may publish host ports)"
+                    )
+
+        # 4. Network segregation check (AD-11)
+        required_networks = ['public-net', 'app-net', 'data-net']
+        for rn in required_networks:
+            if rn not in networks:
+                self.log_error("MISSING_NETWORK", f"docker-compose.yml missing network '{rn}'")
+
+        if 'caddy' in services:
+            caddy_nets = services['caddy']['networks']
+            if 'public-net' not in caddy_nets or 'app-net' not in caddy_nets:
+                self.log_error("INVALID_NETWORK_ATTACHMENT", "Caddy must attach to 'public-net' and 'app-net'")
+
+        if 'postgres' in services:
+            if 'data-net' not in services['postgres']['networks']:
+                self.log_error("INVALID_NETWORK_ATTACHMENT", "Postgres must attach to 'data-net'")
+
+        # 5. Pinned images and service build contexts
+        pinned_images = {
+            'postgres': 'postgres:16-alpine',
+            'caddy': 'caddy:2.11.4-alpine',
+            'keycloak': 'quay.io/keycloak/keycloak:26.7.4',
+            'mailpit': 'axllent/mailpit:v1.31.1',
+            'ollama': 'ollama/ollama:0.34.2',
+            'qdrant': 'qdrant/qdrant:v1.19.1'
+        }
+        for svc_name, expected_img in pinned_images.items():
+            if svc_name in services:
+                actual_img = services[svc_name]['image']
+                if actual_img != expected_img:
+                    self.log_error("IMAGE_PIN_MISMATCH", f"Service '{svc_name}' image expected '{expected_img}', found '{actual_img}'")
+
+        if 'node-red' in services:
+            ctx = services['node-red'].get('build_context', '')
+            if './services/p_automation' not in ctx:
+                self.log_error("INVALID_COMPOSE", "node-red service must point to ./services/p_automation")
+
+        if 'p-process' in services:
+            ctx = services['p-process'].get('build_context', '')
+            if './services/p_process' not in ctx:
+                self.log_error("INVALID_COMPOSE", "p-process service must point to ./services/p_process")
+
+        self.log_pass("docker-compose.yml profiles, single ingress (AD-11), network segregation, and image pins validated")
+
+    def check_caddy_ingress(self):
+        """Verifies infra/caddy/Caddyfile configuration."""
+        caddyfile_path = self.root_dir / 'infra' / 'caddy' / 'Caddyfile'
+        if not caddyfile_path.exists():
+            self.log_error("MISSING_FILE", "infra/caddy/Caddyfile does not exist")
+            return
+
+        with open(caddyfile_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Check routing rules
+        required_routes = [
+            ('/web', 'odoo:8069'),
+            ('/websocket', 'odoo:8069 websocket'),
+            ('/api', 'p-process:3000'),
+            ('/health', 'p-process:3000 /health'),
+            ('/realms', 'keycloak:8080'),
+            ('/analytics', 'superset:8088'),
+            ('web:3000', 'Next.js BFF default route')
+        ]
+        for route_token, desc in required_routes:
+            if route_token not in content:
+                self.log_error("MISSING_ROUTE", f"infra/caddy/Caddyfile missing route for {desc} ('{route_token}')")
+
+        # Check for forbidden wildcard CORS
+        if re.search(r'Access-Control-Allow-Origin["\s]+[*]', content, re.IGNORECASE):
+            self.log_error("SECURITY_VIOLATION", "Caddyfile contains forbidden wildcard CORS (*)")
+
+        self.log_pass("infra/caddy/Caddyfile single ingress and security configuration validated")
+
+    def check_fixtures(self):
+        """Verifies fixtures/core/initial_demo_metadata.sql idempotency and demo labeling."""
+        fixture_path = self.root_dir / 'fixtures' / 'core' / 'initial_demo_metadata.sql'
+        if not fixture_path.exists():
+            self.log_error("MISSING_FILE", "fixtures/core/initial_demo_metadata.sql does not exist")
+            return
+
+        with open(fixture_path, 'r', encoding='utf-8') as f:
+            raw_content = f.read()
+
+        # Strip comments
+        clean_code = re.sub(r'/\*.*?\*/', '', raw_content, flags=re.DOTALL)
+        clean_code = re.sub(r'--.*$', '', clean_code, flags=re.MULTILINE)
+
+        # Check idempotency: Every INSERT must have ON CONFLICT
+        insert_count = len(re.findall(r'\bINSERT\s+INTO\b', clean_code, re.IGNORECASE))
+        conflict_count = len(re.findall(r'\bON\s+CONFLICT\b', clean_code, re.IGNORECASE))
+
+        if insert_count == 0:
+            self.log_error("EMPTY_FIXTURE", "initial_demo_metadata.sql contains no INSERT statements")
+        elif insert_count != conflict_count:
+            self.log_error("NON_IDEMPOTENT_FIXTURE", f"Found {insert_count} INSERTs but {conflict_count} ON CONFLICT clauses")
+
+        # Check demo label
+        if 'demo' not in raw_content.lower() and 'fixture' not in raw_content.lower():
+            self.log_error("UNLABELED_FIXTURE", "initial_demo_metadata.sql missing demo/fixture metadata label")
+
+        # Check forbidden premature business tables
+        forbidden = [
+            r'\bINSERT\s+INTO\s+[^(]*\btickets\b',
+            r'\bINSERT\s+INTO\s+[^(]*\bassignments\b',
+            r'\bINSERT\s+INTO\s+[^(]*\bcsat_responses\b',
+            r'\bINSERT\s+INTO\s+[^(]*\bsops\b',
+        ]
+        for fbt in forbidden:
+            if re.search(fbt, clean_code, re.IGNORECASE):
+                self.log_error("PREMATURE_BUSINESS_DATA", f"initial_demo_metadata.sql contains forbidden statement matching '{fbt}'")
+
+        self.log_pass("fixtures/core/initial_demo_metadata.sql idempotency and demo labeling validated")
+
+    def check_environment_and_scripts(self):
+        """Verifies .env.example, scripts/load-fixtures.py, and scripts/check-health.py exist and execute correctly."""
+        env_ex_path = self.root_dir / '.env.example'
+        if not env_ex_path.exists():
+            self.log_error("MISSING_FILE", ".env.example does not exist")
+        else:
+            with open(env_ex_path, 'r', encoding='utf-8') as f:
+                env_content = f.read()
+
+            required_env_vars = [
+                'COMPOSE_PROFILES', 'POSTGRES_DB', 'POSTGRES_USER',
+                'DATABASE_URL', 'KEYCLOAK_ADMIN', 'KEYCLOAK_DB',
+                'ODOO_DB_USER', 'SUPERSET_SECRET_KEY', 'MAILPIT_SMTP_PORT',
+                'OLLAMA_MODEL'
+            ]
+            for rev in required_env_vars:
+                if rev not in env_content:
+                    self.log_error("MISSING_ENV_VAR", f".env.example missing required variable '{rev}'")
+
+        load_fixtures_script = self.root_dir / 'scripts' / 'load-fixtures.py'
+        if not load_fixtures_script.exists():
+            self.log_error("MISSING_SCRIPT", "Required script 'scripts/load-fixtures.py' does not exist")
+        else:
+            proc_fixtures = subprocess.run(
+                [sys.executable, str(load_fixtures_script), '--dry-run'],
+                capture_output=True,
+                text=True,
+                cwd=str(self.root_dir)
+            )
+            if proc_fixtures.returncode != 0:
+                self.log_error(
+                    "SCRIPT_EXEC_FAILURE",
+                    f"scripts/load-fixtures.py --dry-run failed with exit code {proc_fixtures.returncode}: {proc_fixtures.stderr.strip()}"
+                )
+
+        check_health_script = self.root_dir / 'scripts' / 'check-health.py'
+        if not check_health_script.exists():
+            self.log_error("MISSING_SCRIPT", "Required script 'scripts/check-health.py' does not exist")
+        else:
+            proc_health = subprocess.run(
+                [sys.executable, str(check_health_script), '--check-resources'],
+                capture_output=True,
+                text=True,
+                cwd=str(self.root_dir)
+            )
+            if proc_health.returncode != 0:
+                self.log_error(
+                    "SCRIPT_EXEC_FAILURE",
+                    f"scripts/check-health.py --check-resources failed with exit code {proc_health.returncode}: {proc_health.stderr.strip()}"
+                )
+
+        self.log_pass(".env.example, load-fixtures.py (--dry-run), and check-health.py (--check-resources) executed and validated")
 
     def run_all(self) -> int:
         print("==============================================================================")
@@ -397,6 +675,9 @@ class ArchitectureChecker:
         self.check_initial_migration()
         self.check_contracts()
         self.check_docker_compose()
+        self.check_caddy_ingress()
+        self.check_fixtures()
+        self.check_environment_and_scripts()
 
         print("\n--- PASSED CHECKS ---")
         for p in self.passed_checks:

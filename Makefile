@@ -48,7 +48,8 @@ lint:
 
 test:
 	@echo "Chạy kiểm thử các tầng thành phần..."
-	@docker compose config > /dev/null && echo "[OK] Cú pháp Docker Compose hợp lệ."
+	@docker compose --profile core --profile demo --profile ai config > /dev/null && echo "[OK] Cú pháp Docker Compose hợp lệ cho mọi profile (core, demo, ai)."
+	@python scripts/test-architecture.py
 
 release:
 	@bash scripts/release.sh

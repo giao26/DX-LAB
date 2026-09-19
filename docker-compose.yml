@@ -2,35 +2,119 @@
 # DX-LAB (DX-OS) Docker Compose Orchestration
 # Olympic Tin học Sinh viên PMNM 2026 - Thể lệ PoF
 #
-# Layers:
-#   - H: Human / Core ERP (Odoo)
-#   - P: Process / Automation (Node-RED)
-#   - D: Data & Analytics (PostgreSQL + Superset)
-#   - I: Intelligence (Qdrant + Haystack + Ollama)
+# Profiles:
+#   - core: P (Fastify TypeScript) + PostgreSQL (lightweight development harness)
+#   - demo: core + Caddy (single ingress) + Keycloak + Odoo + Node-RED + Superset + Mailpit
+#   - ai: core + Qdrant + Haystack + Ollama
+#
+# Networks (AD-11):
+#   - public-net: Caddy ingress only (ports 80, 443)
+#   - app-net: Internal application communication (P, Odoo, Node-RED, Keycloak, Superset, Mailpit)
+#   - data-net: Private database and AI vector storage (PostgreSQL, Qdrant, Ollama)
+#
+# Copyright (C) 2026 DX-LAB Development Team
+# License: AGPL-3.0
 # ==============================================================================
 
 services:
   # ----------------------------------------------------------------------------
-  # TẦNG D: CƠ SỞ DỮ LIỆU CHUNG (PostgreSQL)
+  # TẦNG D: CƠ SỞ DỮ LIỆU CHUNG (PostgreSQL 16)
   # ----------------------------------------------------------------------------
   postgres:
     image: postgres:16-alpine
     container_name: dxlab-postgres
     restart: unless-stopped
+    profiles:
+      - core
+      - demo
+      - ai
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-dxlab_db}
       POSTGRES_USER: ${POSTGRES_USER:-dxlab_admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dxlab_postgres_password_2026}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./services/d_data/postgres/init:/docker-entrypoint-initdb.d:ro
     networks:
-      - dxlab-network
+      - data-net
 
   # ----------------------------------------------------------------------------
-  # TẦNG H: ERP & QUẢN TRỊ CON NGƯỜI (Odoo)
+  # TẦNG P: LÕI TIẾN TRÌNH & NGHIỆP VỤ (Fastify TypeScript - Hexagonal Core)
+  # ----------------------------------------------------------------------------
+  p-process:
+    build:
+      context: ./services/p_process
+      dockerfile: Dockerfile
+    container_name: dxlab-p-process
+    restart: unless-stopped
+    profiles:
+      - core
+      - demo
+      - ai
+    depends_on:
+      - postgres
+    environment:
+      PORT: 3000
+      HOST: 0.0.0.0
+      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-dxlab_admin}:${POSTGRES_PASSWORD:-dxlab_postgres_password_2026}@postgres:5432/${POSTGRES_DB:-dxlab_db}
+    networks:
+      - app-net
+      - data-net
+
+  # ----------------------------------------------------------------------------
+  # CỔNG VÀO CÔNG KHAI DUY NHẤT (Caddy Reverse Proxy - AD-11)
+  # ----------------------------------------------------------------------------
+  caddy:
+    image: caddy:2.11.4-alpine
+    container_name: dxlab-caddy
+    restart: unless-stopped
+    profiles:
+      - demo
+    ports:
+      - "${CADDY_HTTP_PORT:-80}:80"
+      - "${CADDY_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - public-net
+      - app-net
+    depends_on:
+      - p-process
+      - odoo
+      - keycloak
+      - superset
+
+  # ----------------------------------------------------------------------------
+  # TẦNG QUẢN LÝ ĐỊNH DANH TẬP TRUNG (Keycloak OIDC - AD-5)
+  # ----------------------------------------------------------------------------
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.4
+    container_name: dxlab-keycloak
+    restart: unless-stopped
+    profiles:
+      - demo
+    command: start-dev
+    depends_on:
+      - postgres
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-dxlab_keycloak_admin_2026}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${KEYCLOAK_DB:-dxlab_keycloak}
+      KC_DB_USERNAME: ${POSTGRES_USER:-dxlab_admin}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-dxlab_postgres_password_2026}
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+      KC_PROXY_HEADERS: xforwarded
+    networks:
+      - app-net
+      - data-net
+
+  # ----------------------------------------------------------------------------
+  # TẦNG H: ERP & QUẢN TRỊ CON NGƯỜI (Odoo 17 Community)
   # ----------------------------------------------------------------------------
   odoo:
     build:
@@ -38,6 +122,8 @@ services:
       dockerfile: Dockerfile
     container_name: dxlab-odoo
     restart: unless-stopped
+    profiles:
+      - demo
     depends_on:
       - postgres
     environment:
@@ -45,17 +131,16 @@ services:
       PORT: 5432
       USER: ${ODOO_DB_USER:-odoo}
       PASSWORD: ${ODOO_DB_PASSWORD:-odoo_secure_password_2026}
-    ports:
-      - "${ODOO_PORT:-8069}:8069"
     volumes:
       - ./services/h_human/config/odoo.conf:/etc/odoo/odoo.conf:ro
       - ./services/h_human/addons:/mnt/extra-addons
       - odoo_data:/var/lib/odoo
     networks:
-      - dxlab-network
+      - app-net
+      - data-net
 
   # ----------------------------------------------------------------------------
-  # TẦNG P: QUY TRÌNH & TỰ ĐỘNG HÓA (Node-RED)
+  # TẦNG P: LẬP LỊCH & CHUYỂN GIAO TÍCH HỢP (Node-RED 5)
   # ----------------------------------------------------------------------------
   node-red:
     build:
@@ -63,15 +148,15 @@ services:
       dockerfile: Dockerfile
     container_name: dxlab-node-red
     restart: unless-stopped
-    ports:
-      - "${NODE_RED_PORT:-1880}:1880"
+    profiles:
+      - demo
     volumes:
       - ./services/p_automation/data:/data
     networks:
-      - dxlab-network
+      - app-net
 
   # ----------------------------------------------------------------------------
-  # TẦNG D: TRỰC QUAN HÓA & DỮ LIỆU (Apache Superset)
+  # TẦNG D: TRỰC QUAN HÓA & BÁO CÁO (Apache Superset 6)
   # ----------------------------------------------------------------------------
   superset:
     build:
@@ -79,48 +164,63 @@ services:
       dockerfile: Dockerfile
     container_name: dxlab-superset
     restart: unless-stopped
+    profiles:
+      - demo
     depends_on:
       - postgres
     environment:
       SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:-superset-secret-key-production-change-2026}
       SQLALCHEMY_DATABASE_URI: postgresql+psycopg2://${POSTGRES_USER:-dxlab_admin}:${POSTGRES_PASSWORD:-dxlab_postgres_password_2026}@postgres:5432/${POSTGRES_DB:-dxlab_db}
-    ports:
-      - "${SUPERSET_PORT:-8088}:8088"
     volumes:
       - ./services/d_data/superset/config/superset_config.py:/app/pythonpath/superset_config.py:ro
       - superset_home:/app/superset_home
     networks:
-      - dxlab-network
+      - app-net
+      - data-net
 
   # ----------------------------------------------------------------------------
-  # TẦNG I: CƠ SỞ DỮ LIỆU VECTOR (Qdrant)
+  # TEST DOUBLES: HỘP THƯ KIỂM THỬ NỘI BỘ (Mailpit)
+  # ----------------------------------------------------------------------------
+  mailpit:
+    image: axllent/mailpit:v1.31.1
+    container_name: dxlab-mailpit
+    restart: unless-stopped
+    profiles:
+      - core
+      - demo
+    volumes:
+      - mailpit_data:/data
+    networks:
+      - app-net
+
+  # ----------------------------------------------------------------------------
+  # TẦNG I: CƠ SỞ DỮ LIỆU VECTOR (Qdrant 1.19.1)
   # ----------------------------------------------------------------------------
   qdrant:
-    image: qdrant/qdrant:v1.11.0
+    image: qdrant/qdrant:v1.19.1
     container_name: dxlab-qdrant
     restart: unless-stopped
-    ports:
-      - "${QDRANT_HTTP_PORT:-6333}:6333"
-      - "${QDRANT_GRPC_PORT:-6334}:6334"
+    profiles:
+      - ai
     volumes:
       - ./services/i_intelligence/qdrant/config/config.yaml:/qdrant/config/config.yaml:ro
       - qdrant_storage:/qdrant/storage
     networks:
-      - dxlab-network
+      - data-net
 
   # ----------------------------------------------------------------------------
-  # TẦNG I: MÔ HÌNH NGÔN NGỮ CỤC BỘ (Ollama)
+  # TẦNG I: MÔ HÌNH NGÔN NGỮ CỤC BỘ (Ollama 0.34.2)
   # ----------------------------------------------------------------------------
   ollama:
     image: ollama/ollama:0.34.2
     container_name: dxlab-ollama
     restart: unless-stopped
-    ports:
-      - "${OLLAMA_PORT:-11434}:11434"
+    profiles:
+      - ai
     volumes:
       - ollama_models:/root/.ollama
     networks:
-      - dxlab-network
+      - data-net
 
   # ----------------------------------------------------------------------------
   # TẦNG I: TRÍ TUỆ NHÂN TẠO & RAG (Haystack RAG Service)
@@ -131,6 +231,8 @@ services:
       dockerfile: Dockerfile
     container_name: dxlab-haystack-rag
     restart: unless-stopped
+    profiles:
+      - ai
     depends_on:
       - qdrant
       - ollama
@@ -142,15 +244,18 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
       POSTGRES_HOST: postgres
       POSTGRES_DB: ${POSTGRES_DB:-dxlab_db}
-    ports:
-      - "${HAYSTACK_API_PORT:-8000}:8000"
     volumes:
       - ./services/i_intelligence/haystack_rag/src:/app/src
     networks:
-      - dxlab-network
+      - app-net
+      - data-net
 
 networks:
-  dxlab-network:
+  public-net:
+    driver: bridge
+  app-net:
+    driver: bridge
+  data-net:
     driver: bridge
 
 volumes:
@@ -159,3 +264,6 @@ volumes:
   superset_home:
   qdrant_storage:
   ollama_models:
+  caddy_data:
+  caddy_config:
+  mailpit_data:

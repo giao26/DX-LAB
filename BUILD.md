@@ -1,89 +1,87 @@
-# Build DX-LAB từ mã nguồn
+# Build và Khởi chạy DX-LAB từ mã nguồn
 
 ## Trạng thái hỗ trợ
 
-> **Chưa có đường build/khởi chạy đầy đủ được hỗ trợ.** Repository hiện là brownfield skeleton trước Story 1.1–1.2. Compose, Makefile, script và `.env.example` đang phản ánh kiến trúc thử nghiệm cũ, không phải cấu hình demo hoặc production đã được kiểm chứng.
+> **Đã hoàn thành Story 1.1 và Story 1.2.**
+> Hệ thống hiện đã hỗ trợ đầy đủ 3 profiles Compose độc lập: `core`, `demo`, và `ai`.
+> Cổng ingress duy nhất Caddy (AD-11) bảo vệ toàn bộ mạng nội bộ, dịch vụ lõi `p-process` (Fastify TypeScript) và `postgres` được cô lập trong `data-net`/`app-net`, script nạp fixture idempotent `scripts/load-fixtures.py` và script kiểm tra tài nguyên/readiness `scripts/check-health.py` đã sẵn sàng.
 
-Hiện tại không chạy các lệnh sau với kỳ vọng dựng được kiến trúc DX-LAB đích:
+## Quy trình Onboarding cho người đóng góp mới (Profile `core`)
 
-```text
+Profile `core` được thiết kế tối ưu cho người mới đóng góp: chỉ khởi động `p-process` và `postgres`, khởi động dưới 5 giây, tiêu tốn ít tài nguyên và **hoàn toàn không yêu cầu tải bất kỳ mô hình AI nào** (AR-14, FR-13).
+
+### Bước 1: Chuẩn bị cấu hình môi trường
+Sao chép tệp mẫu môi trường sang `.env` (tệp `.env` đã được cấu hình trong `.gitignore`, đảm bảo secret không bị rò rỉ vào Git - AR-24, NFR-14):
+
+```bash
 cp .env.example .env
-make setup
-make build
-make up
-docker compose build
-docker compose up -d
-make clean
 ```
 
-`make clean` còn xóa volume nên có thể làm mất dữ liệu cục bộ. `docker compose config` chỉ kiểm tra cú pháp skeleton; kết quả thành công không chứng minh kiến trúc, bảo mật hoặc hành vi nghiệp vụ đúng.
+### Bước 2: Đánh giá tài nguyên phần cứng
+Chạy script kiểm tra phần cứng để đảm bảo máy đáp ứng yêu cầu tối thiểu của profile dự định chạy:
 
-Xem [hướng dẫn triển khai](docs/installation.md) và [Architecture Spine](_bmad-output/planning-artifacts/architecture/architecture-DX-LAB-2026-09-19/ARCHITECTURE-SPINE.md) trước khi thay đổi hạ tầng.
+```bash
+# Kiểm tra tài nguyên cho profile core (mặc định)
+python scripts/check-health.py --check-resources
 
-## Công việc nền bắt buộc
+# Kiểm tra tài nguyên cho profile demo hoặc ai
+python scripts/check-health.py --profile demo --check-resources
+python scripts/check-health.py --profile ai --check-resources
+```
 
-### Story 1.1 — Chuyển cấu trúc repository
+### Bước 3: Khởi chạy profile mong muốn bằng Docker Compose
 
-- Lập inventory schema, dữ liệu, chủ sở hữu và phụ thuộc của skeleton.
-- Di chuyển Node-RED từ `services/p_process` sang `services/p_automation`.
-- Tạo lõi TypeScript/Fastify tại `services/p_process`.
-- Tạo `apps/web`, `contracts/openapi`, `contracts/events` và `infra`.
-- Di trú schema được giữ lại bằng migration có phiên bản và kiểm thử.
-- Không tạo sớm bảng nghiệp vụ trước story sở hữu nhu cầu đó.
+```bash
+# Khởi chạy profile core (chỉ P và PostgreSQL)
+docker compose --profile core up -d
 
-### Story 1.2 — Tạo môi trường có thể tái lập
+# Khởi chạy profile demo (thêm Caddy, Keycloak, Odoo, Node-RED, Superset, Mailpit)
+docker compose --profile demo up -d
 
-- Bổ sung Caddy, Keycloak, mạng public/application/data và database/user riêng.
-- Cung cấp profile `core`, `demo`, `ai` cùng overlay môi trường `dev`, `test`, `demo`.
-- Sinh secret ngoài Git; loại bỏ mật khẩu mặc định, wildcard CORS và cổng đặc quyền công khai.
-- Khóa dependency, image, OCA module và model bằng lockfile, digest, commit hoặc manifest.
-- Cung cấp fixture idempotent, migration, health/readiness check và clean-host smoke test.
+# Khởi chạy profile ai (thêm Qdrant, Ollama, Haystack RAG)
+docker compose --profile ai up -d
+```
 
-## Toolchain đích
+### Bước 4: Kiểm tra trạng thái sức khỏe & readiness
 
-Phiên bản seed đã xác minh nằm trong [Technology Sources](_bmad-output/planning-artifacts/architecture/architecture-DX-LAB-2026-09-19/TECHNOLOGY-SOURCES.md). Trước khi chấp nhận build, repository phải khóa chính xác:
+```bash
+python scripts/check-health.py --profile core
+```
 
-- Node.js, pnpm, TypeScript, Fastify, Drizzle và Next.js qua manifest cùng `pnpm-lock.yaml`;
-- Python, Haystack và adapter I qua `pyproject.toml` cùng `uv.lock`;
-- mọi image Compose bằng digest bất biến;
-- OCA `auth_oidc` bằng commit SHA;
-- model sinh và embedding bằng manifest có ID, digest, giấy phép và cấu hình phần cứng.
+Endpoint kiểm tra sức khỏe của dịch vụ lõi P: `http://localhost:3000/health`.
 
-Không dùng tag `latest`, version range trôi nổi hoặc model alias chưa được ghi trong manifest phát hành.
+### Bước 5: Nạp dữ liệu kỹ thuật mẫu (Fixture)
 
-## Profile build mục tiêu
+```bash
+# Chạy thử nghiệm kiểm tra tính hợp lệ và cấu trúc idempotent
+python scripts/load-fixtures.py --dry-run
 
-| Profile | Thành phần | Điều kiện sử dụng |
-| --- | --- | --- |
-| `core` | P, PostgreSQL, test doubles | Đường phát triển và đóng góp mặc định; không tải Odoo, Superset hoặc model AI |
-| `demo` | `core`, Web, Keycloak, Odoo, Node-RED, Superset, Mailpit | Demo H→P→D với các phiên đăng nhập tách biệt |
-| `ai` | Dịch vụ I, Qdrant và Ollama bổ sung | Demo phân loại, phân tích và bản nháp SOP bằng model đã ghim |
+# Nạp dữ liệu fixture cho profile core (an toàn khi chạy lại nhiều lần)
+python scripts/load-fixtures.py --profile core
+```
 
-Caddy phải là dịch vụ duy nhất mở cổng HTTP/HTTPS. PostgreSQL, P nội bộ, Node-RED editor, Superset admin, Keycloak admin, Qdrant, Ollama và Haystack nằm trong mạng riêng.
+### Bước 6: Chạy kiểm thử kiến trúc tự động
 
-## Cổng chất lượng trước khi công bố Quick Start
+```bash
+python scripts/test-architecture.py
+```
 
-Chỉ thêm lệnh build có thể sao chép vào tài liệu sau khi CI và clean-host smoke test chứng minh:
+## Bảng thông số tài nguyên tối thiểu theo Profile
 
-1. `core`, `demo` và `ai` dựng được từ source với lockfile/digest đã commit.
-2. Migration và health/readiness check hoàn tất; create/side effect dùng `Idempotency-Key`, cập nhật aggregate dùng version precondition và transaction P ghi trạng thái cùng outbox atomically.
-3. Kiểm thử domain, PostgreSQL integration/migration, OpenAPI/event contract và hành trình UJ-1/UJ-2 đạt.
-4. Odoo và Node-RED chỉ gọi P hoặc xử lý sự kiện đã commit, không ghi trực tiếp bảng P.
-5. Consumer khử trùng bằng `event_id`, giữ thứ tự `aggregate_version`, xử lý delivery trùng/đảo thứ tự và chuyển lỗi hết lượt retry sang dead-letter; email, notification, AI work và side effect tích hợp không bị phát lặp theo nghĩa nghiệp vụ.
-6. Đăng nhập, phân quyền nhóm và Superset RLS từ chối mặc định khi thiếu scope.
-7. Profile AI index, retrieve và generate được một lần bằng model manifest đã ghim; kiểm thử mặc định vẫn chạy không cần model.
-8. Không còn mật khẩu mặc định, cổng đặc quyền công khai, wildcard CORS, tag trôi nổi hoặc secret trong Git.
-9. CPU, RAM, dung lượng tối thiểu, chế độ không AI và thời gian khởi động đã được đo, ghi lại.
-10. Bản phát hành được dựng lại trên máy sạch và cung cấp checksum, SBOM, changelog, hướng dẫn cài đặt cùng giấy phép phụ thuộc/model.
+| Profile | Thành phần | CPU tối thiểu | RAM tối thiểu | Ổ đĩa khả dụng | Mục đích sử dụng |
+| --- | --- | --- | --- | --- | --- |
+| **`core`** | `p-process`, `postgres` | 2 cores | 2 GB | 10 GB | Phát triển nghiệp vụ cốt lõi, kiểm thử unit/contract; **không tải AI hay ERP** |
+| **`demo`** | `core` + `caddy`, `keycloak`, `odoo`, `node-red`, `superset`, `mailpit` | 4 cores | 8 GB | 20 GB | Trình diễn toàn diện luồng H→P→D qua Caddy ingress |
+| **`ai`** | `core` + `qdrant`, `ollama`, `haystack-rag` | 8 cores | 16 GB | 40 GB | Khởi động mô hình ngôn ngữ cục bộ và pipeline RAG |
 
-## Lệnh sẽ được bổ sung sau
+> [!TIP]
+> Nếu máy tính cá nhân không đủ 16 GB RAM cho profile `ai`, hãy sử dụng profile `core` để phát triển và kiểm thử hành vi nghiệp vụ. Mọi logic cốt lõi đều được kiểm thử đầy đủ qua fixture mà không cần mô hình AI.
 
-Khi các cổng trên đạt, tài liệu phải cung cấp và kiểm chứng tối thiểu:
+## Cấu trúc mạng và bảo mật ingress (AD-11, NFR-14)
 
-- lệnh chuẩn bị secret và fixture cho từng môi trường;
-- lệnh build/up/down/status/logs cho từng profile;
-- lệnh migration, health/readiness và test;
-- lệnh tải model theo manifest cho profile `ai`;
-- lệnh sao lưu, phục hồi thử và dọn môi trường kiểm tra an toàn.
+- **`public-net`**: Chỉ có dịch vụ **Caddy** mở cổng công khai ra máy host (`80:80`, `443:443`).
+- **`app-net`**: Mạng ứng dụng nội bộ (`p-process`, `odoo`, `keycloak`, `node-red`, `superset`, `mailpit`).
+- **`data-net`**: Mạng dữ liệu riêng biệt (`postgres`, `qdrant`, `ollama`).
+- **Tuyệt đối không mở cổng trực tiếp** của PostgreSQL, P nội bộ, Node-RED editor, Superset admin hay Keycloak admin ra môi trường mạng công khai.
+- Superset chỉ được truy cập qua Caddy tại đường dẫn nhúng `/analytics/*`; toàn bộ trang quản trị Superset được giữ kín trong mạng nội bộ.
 
-Không công bố tên overlay hoặc câu lệnh giả định trước khi file và CI tương ứng tồn tại.

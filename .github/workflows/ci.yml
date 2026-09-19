@@ -27,8 +27,12 @@ jobs:
 
       - name: Validate Docker Compose Configuration
         run: |
-          docker compose config > /dev/null
-          echo "Docker compose configuration is valid."
+          docker compose --profile core --profile demo --profile ai config > /dev/null
+          echo "Docker compose configuration is valid across core, demo, and ai profiles."
+
+      - name: Run Architecture Conformance Tests
+        run: |
+          python scripts/test-architecture.py
 
       - name: Check License Headers in Python Files
         run: |

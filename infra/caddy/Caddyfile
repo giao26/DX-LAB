@@ -1,0 +1,67 @@
+# ==============================================================================
+# DX-LAB (DX-OS) - Caddy Ingress Configuration
+# Conforms to AD-11 (Single hardened ingress) & NFR-14
+# Copyright (C) 2026 DX-LAB Development Team
+# License: AGPL-3.0
+# ==============================================================================
+
+{$DOMAIN:localhost} {
+    # Tự động nén dữ liệu phản hồi
+    encode gzip zstd
+
+    # Header bảo mật (chặn clickjacking, MIME sniffing, cấm wildcard CORS)
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    # Tầng H: Odoo ERP & Giao diện tác nghiệp nhân viên (AD-7, AD-11)
+    handle /web* {
+        reverse_proxy odoo:8069
+    }
+    handle /odoo* {
+        reverse_proxy odoo:8069
+    }
+    handle /websocket* {
+        reverse_proxy odoo:8069
+    }
+
+    # Tầng P: Process Core REST API & Health Endpoint (AD-1, AD-11)
+    handle /api/* {
+        reverse_proxy p-process:3000
+    }
+    handle /health {
+        reverse_proxy p-process:3000
+    }
+
+    # Keycloak OIDC Authentication (AD-5, AD-11)
+    # Exposes authentication & realms endpoints, keeps internal admin private
+    handle /realms* {
+        reverse_proxy keycloak:8080
+    }
+    handle /resources* {
+        reverse_proxy keycloak:8080
+    }
+    handle /auth* {
+        reverse_proxy keycloak:8080
+    }
+
+    # Tầng D: Apache Superset Embedded Analytics Runtime only (AD-10, AD-11)
+    # Caddy exposes only embedded runtime at /analytics/*; Superset admin remains private
+    handle_path /analytics/* {
+        reverse_proxy superset:8088
+    }
+
+    # Tầng Web / DX-Portal BFF: Next.js Portal, Forms & Dashboard (AD-6)
+    # Default route falls through to Web frontend BFF
+    handle {
+        reverse_proxy web:3000 {
+            @error status 502 503
+            handle_response @error {
+                respond "DX-LAB Ingress: Web service is initializing or unavailable." 503
+            }
+        }
+    }
+}
