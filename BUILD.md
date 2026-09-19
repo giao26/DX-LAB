@@ -1,102 +1,89 @@
-# Hướng Dẫn Biên Dịch & Khởi Chạy Từ Mã Nguồn (Building From Source)
+# Build DX-LAB từ mã nguồn
 
-Tài liệu này hướng dẫn chi tiết cách cấu hình, biên dịch (build) và khởi chạy toàn bộ hệ thống **DX-LAB (DX-OS)** hoàn toàn từ mã nguồn sử dụng các công cụ nguồn mở tiêu chuẩn.
+## Trạng thái hỗ trợ
 
----
+> **Chưa có đường build/khởi chạy đầy đủ được hỗ trợ.** Repository hiện là brownfield skeleton trước Story 1.1–1.2. Compose, Makefile, script và `.env.example` đang phản ánh kiến trúc thử nghiệm cũ, không phải cấu hình demo hoặc production đã được kiểm chứng.
 
-## 1. Yêu Cầu Tiền Quyết (Prerequisites)
+Hiện tại không chạy các lệnh sau với kỳ vọng dựng được kiến trúc DX-LAB đích:
 
-Tất cả các công cụ được sử dụng đều là công cụ mã nguồn mở được phát hành tự do:
-- **Hệ điều hành**: Linux (Ubuntu 22.04 LTS / Debian 12 / Fedora), macOS hoặc Windows (WSL2)
-- **Container Engine**: Docker Engine 24.0+ & Docker Compose v2.20+ (hoặc Podman / Podman Compose)
-- **Build Tool**: GNU Make 4.0+
-- **Ngôn ngữ & Quản lý gói**:
-  - Python 3.11+ và `uv` (hoặc `pip`)
-  - Node.js 20 LTS và `npm` 10+
-  - Git 2.30+
-
----
-
-## 2. Cấu Hình Trước Khi Dịch (Pre-build Configuration)
-
-> [!IMPORTANT]
-> Toàn bộ hệ thống được tham số hóa thông qua biến môi trường. **Tuyệt đối không sửa thủ công mã nguồn hoặc tệp header** để thay đổi thông số cấu hình.
-
-1. Khởi tạo tệp môi trường `.env` từ tệp mẫu:
-   ```bash
-   cp .env.example .env
-   ```
-2. Tùy chỉnh các thông số cấu hình trong `.env` nếu cần (cổng mạng, mật khẩu cơ sở dữ liệu, model AI).
-3. Chạy lệnh chuẩn bị tự động:
-   ```bash
-   make setup
-   # hoặc: bash scripts/setup.sh
-   ```
-
----
-
-## 3. Biên Dịch Hệ Thống (Building)
-
-Biên dịch container image cho các tầng thành phần sử dụng Docker:
-
-```bash
-# Biên dịch toàn bộ các dịch vụ từ mã nguồn
+```text
+cp .env.example .env
+make setup
 make build
-
-# Hoặc biên dịch bằng lệnh docker compose chuẩn
-docker compose build --no-cache
-```
-
-Lệnh trên sẽ tự động:
-- Biên dịch image mở rộng cho Odoo tại `services/h_human/Dockerfile`
-- Biên dịch image Node-RED kèm workflow tại `services/p_process/Dockerfile`
-- Biên dịch image Superset cấu hình sẵn tại `services/d_data/superset/Dockerfile`
-- Biên dịch service FastAPI + Haystack RAG tại `services/i_intelligence/haystack_rag/Dockerfile`
-
----
-
-## 4. Khởi Chạy Hệ Thống (Execution)
-
-Khởi động toàn bộ cụm dịch vụ:
-```bash
 make up
-# Hoặc: docker compose up -d
-```
-
-Kiểm tra trạng thái hoạt động:
-```bash
-make status
-# Hoặc: docker compose ps
-```
-
-Xem nhật ký thời gian thực (logs):
-```bash
-make logs
-```
-
----
-
-## 5. Truy Cập Các Tầng Dịch Vụ
-
-Sau khi khởi chạy thành công, các dịch vụ sẽ lắng nghe trên các cổng mặc định:
-- **Tầng H (Odoo ERP)**: http://localhost:8069
-- **Tầng P (Node-RED Workflow)**: http://localhost:1880
-- **Tầng D (PostgreSQL)**: localhost:5432
-- **Tầng D (Apache Superset BI)**: http://localhost:8088
-- **Tầng I (Haystack RAG API)**: http://localhost:8000/docs (Swagger UI)
-- **Tầng I (Qdrant Vector DB)**: http://localhost:6333/dashboard
-- **Tầng I (Ollama LLM Engine)**: http://localhost:11434
-
----
-
-## 6. Dừng & Dọn Dẹp
-
-Dừng toàn bộ hệ thống:
-```bash
-make down
-```
-
-Dọn dẹp container và giải phóng volume khi cần:
-```bash
+docker compose build
+docker compose up -d
 make clean
 ```
+
+`make clean` còn xóa volume nên có thể làm mất dữ liệu cục bộ. `docker compose config` chỉ kiểm tra cú pháp skeleton; kết quả thành công không chứng minh kiến trúc, bảo mật hoặc hành vi nghiệp vụ đúng.
+
+Xem [hướng dẫn triển khai](docs/installation.md) và [Architecture Spine](_bmad-output/planning-artifacts/architecture/architecture-DX-LAB-2026-09-19/ARCHITECTURE-SPINE.md) trước khi thay đổi hạ tầng.
+
+## Công việc nền bắt buộc
+
+### Story 1.1 — Chuyển cấu trúc repository
+
+- Lập inventory schema, dữ liệu, chủ sở hữu và phụ thuộc của skeleton.
+- Di chuyển Node-RED từ `services/p_process` sang `services/p_automation`.
+- Tạo lõi TypeScript/Fastify tại `services/p_process`.
+- Tạo `apps/web`, `contracts/openapi`, `contracts/events` và `infra`.
+- Di trú schema được giữ lại bằng migration có phiên bản và kiểm thử.
+- Không tạo sớm bảng nghiệp vụ trước story sở hữu nhu cầu đó.
+
+### Story 1.2 — Tạo môi trường có thể tái lập
+
+- Bổ sung Caddy, Keycloak, mạng public/application/data và database/user riêng.
+- Cung cấp profile `core`, `demo`, `ai` cùng overlay môi trường `dev`, `test`, `demo`.
+- Sinh secret ngoài Git; loại bỏ mật khẩu mặc định, wildcard CORS và cổng đặc quyền công khai.
+- Khóa dependency, image, OCA module và model bằng lockfile, digest, commit hoặc manifest.
+- Cung cấp fixture idempotent, migration, health/readiness check và clean-host smoke test.
+
+## Toolchain đích
+
+Phiên bản seed đã xác minh nằm trong [Technology Sources](_bmad-output/planning-artifacts/architecture/architecture-DX-LAB-2026-09-19/TECHNOLOGY-SOURCES.md). Trước khi chấp nhận build, repository phải khóa chính xác:
+
+- Node.js, pnpm, TypeScript, Fastify, Drizzle và Next.js qua manifest cùng `pnpm-lock.yaml`;
+- Python, Haystack và adapter I qua `pyproject.toml` cùng `uv.lock`;
+- mọi image Compose bằng digest bất biến;
+- OCA `auth_oidc` bằng commit SHA;
+- model sinh và embedding bằng manifest có ID, digest, giấy phép và cấu hình phần cứng.
+
+Không dùng tag `latest`, version range trôi nổi hoặc model alias chưa được ghi trong manifest phát hành.
+
+## Profile build mục tiêu
+
+| Profile | Thành phần | Điều kiện sử dụng |
+| --- | --- | --- |
+| `core` | P, PostgreSQL, test doubles | Đường phát triển và đóng góp mặc định; không tải Odoo, Superset hoặc model AI |
+| `demo` | `core`, Web, Keycloak, Odoo, Node-RED, Superset, Mailpit | Demo H→P→D với các phiên đăng nhập tách biệt |
+| `ai` | Dịch vụ I, Qdrant và Ollama bổ sung | Demo phân loại, phân tích và bản nháp SOP bằng model đã ghim |
+
+Caddy phải là dịch vụ duy nhất mở cổng HTTP/HTTPS. PostgreSQL, P nội bộ, Node-RED editor, Superset admin, Keycloak admin, Qdrant, Ollama và Haystack nằm trong mạng riêng.
+
+## Cổng chất lượng trước khi công bố Quick Start
+
+Chỉ thêm lệnh build có thể sao chép vào tài liệu sau khi CI và clean-host smoke test chứng minh:
+
+1. `core`, `demo` và `ai` dựng được từ source với lockfile/digest đã commit.
+2. Migration và health/readiness check hoàn tất; create/side effect dùng `Idempotency-Key`, cập nhật aggregate dùng version precondition và transaction P ghi trạng thái cùng outbox atomically.
+3. Kiểm thử domain, PostgreSQL integration/migration, OpenAPI/event contract và hành trình UJ-1/UJ-2 đạt.
+4. Odoo và Node-RED chỉ gọi P hoặc xử lý sự kiện đã commit, không ghi trực tiếp bảng P.
+5. Consumer khử trùng bằng `event_id`, giữ thứ tự `aggregate_version`, xử lý delivery trùng/đảo thứ tự và chuyển lỗi hết lượt retry sang dead-letter; email, notification, AI work và side effect tích hợp không bị phát lặp theo nghĩa nghiệp vụ.
+6. Đăng nhập, phân quyền nhóm và Superset RLS từ chối mặc định khi thiếu scope.
+7. Profile AI index, retrieve và generate được một lần bằng model manifest đã ghim; kiểm thử mặc định vẫn chạy không cần model.
+8. Không còn mật khẩu mặc định, cổng đặc quyền công khai, wildcard CORS, tag trôi nổi hoặc secret trong Git.
+9. CPU, RAM, dung lượng tối thiểu, chế độ không AI và thời gian khởi động đã được đo, ghi lại.
+10. Bản phát hành được dựng lại trên máy sạch và cung cấp checksum, SBOM, changelog, hướng dẫn cài đặt cùng giấy phép phụ thuộc/model.
+
+## Lệnh sẽ được bổ sung sau
+
+Khi các cổng trên đạt, tài liệu phải cung cấp và kiểm chứng tối thiểu:
+
+- lệnh chuẩn bị secret và fixture cho từng môi trường;
+- lệnh build/up/down/status/logs cho từng profile;
+- lệnh migration, health/readiness và test;
+- lệnh tải model theo manifest cho profile `ai`;
+- lệnh sao lưu, phục hồi thử và dọn môi trường kiểm tra an toàn.
+
+Không công bố tên overlay hoặc câu lệnh giả định trước khi file và CI tương ứng tồn tại.
