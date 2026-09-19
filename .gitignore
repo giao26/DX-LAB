@@ -48,7 +48,7 @@ data/filestore/
 data/sessions/
 
 # Docker volumes / mounts
-services/p_process/data/node_modules/
+services/p_automation/data/node_modules/
 services/i_intelligence/ollama/models/
 services/i_intelligence/qdrant/storage/
 services/d_data/postgres/data/

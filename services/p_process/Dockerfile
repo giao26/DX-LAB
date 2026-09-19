@@ -1,18 +1,32 @@
 # ==============================================================================
-# DX-LAB (DX-OS) - Node-RED Custom Containerfile
+# DX-LAB (DX-OS) - Process Core Service Containerfile
 # Copyright (C) 2026 DX-LAB Development Team
 # License: AGPL-3.0
 # ==============================================================================
 
-FROM nodered/node-red:3.1-debian
+FROM node:24.21.0-alpine AS builder
 
-USER root
+WORKDIR /app
 
-WORKDIR /data
+COPY package.json package-lock.json tsconfig.json ./
+RUN npm ci
 
-COPY package.json /data/
-RUN npm install --no-audit --no-update-notifier --only=production
+COPY src/ ./src/
+RUN npm run build
 
-USER node-red
+FROM node:24.21.0-alpine AS runner
 
-EXPOSE 1880
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+COPY --from=builder /app/dist ./dist
+
+USER node
+
+EXPOSE 3000
+
+CMD ["node", "dist/index.js"]

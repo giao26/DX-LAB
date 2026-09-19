@@ -7,80 +7,64 @@ DX-LAB là dự án phần mềm nguồn mở phục vụ demo OLP 2026. Sản p
 
 ## Trạng thái hiện tại
 
-> **Brownfield skeleton — chưa sẵn sàng để triển khai.** Repository hiện còn cấu trúc thử nghiệm cũ: Node-RED nằm tại `services/p_process`, Compose mở trực tiếp nhiều cổng đặc quyền và `.env.example` chứa giá trị mẫu có thể bị dùng nhầm. Không dùng `make up`, `docker compose up`, `.env.example` hoặc stack hiện tại cho môi trường chia sẻ, demo chấm thi hay production.
+> **Đã hoàn thành Story 1.1 (Chuyển mã sang cấu trúc kiến trúc chuẩn).**
+> Toàn bộ tài sản Node-RED đã được di chuyển sang `services/p_automation`, lõi quy trình Fastify TypeScript độc lập đã được khởi tạo tại `services/p_process` theo kiến trúc lục giác, thư mục hợp đồng tập trung `contracts/` (OpenAPI 3.1 & JSON Schema Draft 2020-12) đã được kích hoạt, và script kiểm tra quy tắc kiến trúc tự động `scripts/test-architecture.py` đã sẵn sàng.
+> 
+> *Lưu ý*: Việc cấu hình phân vùng mạng Caddy, Keycloak OIDC và các profile tái lập (`core`, `demo`, `ai`) tiếp tục được thực hiện trong Story 1.2. Xem [hướng dẫn triển khai](docs/installation.md) để biết lộ trình chi tiết.
 
-Story 1.1–1.2 sẽ chuyển repository sang kiến trúc chuẩn, tạo các profile có thể tái lập và bổ sung lệnh Quick Start sau khi vượt qua clean-host smoke test. Xem [hướng dẫn triển khai](docs/installation.md) để biết ranh giới hiện tại.
+## Phân Định Trách Nhiệm & Chủ Quyền Dữ Liệu (AR-1, AR-4, AR-21, AR-26)
 
-## Kiến trúc đích H–P–D–I
+| Thành phần | Đường dẫn | Công nghệ | Vai trò & Quyền sở hữu | Ranh giới dữ liệu |
+|---|---|---|---|---|
+| **DX-Portal / BFF** | `apps/web/` | Next.js 16 / React 19 | Giao diện cổng thông tin, tiếp nhận ticket ẩn danh, hiển thị Dashboard D/I. | Browser trust boundary; không truy cập trực tiếp DB hay internal API. |
+| **P (Process Core)** | `services/p_process/` | Fastify 5 / TypeScript 6 / Drizzle | **Chủ quyền duy nhất** đối với trạng thái ticket, phân công công bằng, SLA, CSAT và vòng đời SOP. | Sở hữu riêng PostgreSQL schema `dx_core` và các bảng nghiệp vụ; cung cấp outbox & reporting views. |
+| **P (Automation)** | `services/p_automation/` | Node-RED 5 / Node.js | Lập lịch (cron) và chuyển giao tích hợp (delivery adapter). | **Không chứa bất biến nghiệp vụ**, không đọc/ghi trực tiếp DB của P. |
+| **H (Human / ERP)** | `services/h_human/` | Odoo 17 CE / Python | Giao diện xử lý của nhân viên, chat nội bộ, rà soát bản nháp SOP. | Lưu projection tối thiểu; mọi thay đổi trạng thái gọi qua API của P. |
+| **D (Data / BI)** | `services/d_data/` | Apache Superset 6 / PostgreSQL | Trực quan hóa chỉ số vận hành và Dashboard điều hành. | Chỉ đọc các SQL reporting views do P sở hữu thông qua scoped guest token. |
+| **I (Intelligence)** | `services/i_intelligence/` | Haystack 3 / Qdrant / Ollama | Dịch vụ cố vấn (Advisory): phân loại yêu cầu, phát hiện nút thắt, gợi ý SOP. | Chỉ xử lý dữ liệu đã ẩn danh/giảm thiểu; không tự ý thay đổi ticket hay xuất bản SOP. |
+| **Contracts** | `contracts/` | OpenAPI 3.1 / JSON Schema 2020-12 | Nguồn hợp đồng giao tiếp chuẩn duy nhất giữa các dịch vụ. | Bắt buộc cho toàn bộ REST API (`openapi/`) và sự kiện outbox (`events/`). |
 
-```mermaid
-flowchart LR
-    U[Người dùng] --> C[Caddy]
-    C --> W[DX-Portal / BFF]
-    C --> O[Odoo]
-    C --> K[Keycloak]
-    W --> P[Lõi P<br/>TypeScript / Fastify]
-    O --> P
-    P --> DB[(PostgreSQL)]
-    P --> N[Node-RED<br/>lịch và chuyển giao]
-    N --> O
-    P --> R[(Reporting views<br/>snapshots)]
-    R --> S[Superset]
-    C -->|/analytics/*| S
-    W -. scoped guest token / RLS .-> S
-    P --> I[Haystack]
-    I --> Q[(Qdrant)]
-    I --> L[Ollama]
-```
-
-### H — Con người
-
-Odoo Community là giao diện làm việc, nhắn tin và duyệt SOP; Keycloak cung cấp danh tính OIDC. Odoo lưu projection tối thiểu và gọi command của P, không sở hữu trạng thái ticket hay SOP.
-
-### P — Quy trình
-
-Lõi TypeScript/Fastify theo kiến trúc lục giác sở hữu toàn bộ bất biến nghiệp vụ: ticket, phân công công bằng, SLA, CSAT, khuyến nghị, phê duyệt và xuất bản SOP. Node-RED chỉ lập lịch và chuyển giao tích hợp; không chứa quy tắc nghiệp vụ và không ghi trực tiếp bảng của P.
-
-### D — Dữ liệu
-
-P sở hữu schema chuẩn, reporting view có phiên bản và snapshot hằng ngày. Superset chỉ đọc dữ liệu báo cáo đã giới hạn phạm vi. Dashboard hiển thị ticket mới, quá SLA, CSAT và các chỉ số vận hành theo quyền người dùng.
-
-### I — Trí tuệ hỗ trợ quyết định
-
-Haystack, Qdrant và Ollama phân loại nội dung, phát hiện nút thắt và soạn bản nháp SOP. AI không tự đổi ticket hoặc xuất bản SOP: nhân viên xác nhận phân loại, người phụ trách rà soát bản nháp và giám đốc quyết định có áp dụng khuyến nghị.
-
-## Luồng demo mục tiêu
-
-1. Người trình diễn mở DX-Portal và giới thiệu tổng quan H→P→D→I.
-2. Khách tạo ticket qua Web với email bắt buộc và dữ liệu được kiểm tra.
-3. P cấp mã, phân công công bằng và gửi việc tới Odoo.
-4. AI đề xuất phân loại; nhân viên xác nhận trước khi loại mới có hiệu lực.
-5. Nhân viên xử lý ticket trên Odoo; P theo dõi bước quy trình và SLA.
-6. D cập nhật Dashboard; I phát hiện nút thắt, đưa khuyến nghị và soạn bản nháp SOP.
-7. Giám đốc quyết định; người phụ trách duyệt SOP trong Odoo trước khi xuất bản.
-
-## Cấu trúc đích rút gọn
-
-Danh sách dưới đây nêu các vùng chính, không thay thế cây đầy đủ trong Architecture Spine. Các đường dẫn đánh dấu “sẽ tạo” chưa tồn tại trong skeleton hiện tại:
+## Cấu trúc thư mục
 
 ```text
-apps/web/                    # Sẽ tạo: DX-Portal, form và Dashboard
-services/h_human/            # Odoo, addon, OIDC và adapter P
-services/p_process/          # Sẽ thay: lõi TypeScript/Fastify
-services/p_automation/       # Sẽ tạo: tài sản Node-RED được di chuyển
-services/d_data/             # Superset, dataset và dashboard
-services/i_intelligence/     # Haystack, Qdrant và Ollama
-services/notification/       # Sẽ tạo: SMTP/notification adapter và Mailpit
-contracts/openapi/           # Sẽ tạo: hợp đồng REST có phiên bản
-contracts/events/            # Sẽ tạo: JSON Schema sự kiện
-contracts/reporting/         # Sẽ tạo: dataset, scope key và RLS mapping
-contracts/exports/           # Sẽ tạo: schema định dạng mở và từ điển dữ liệu
-infra/                       # Sẽ tạo: Compose, Caddy và Keycloak
+contracts/
+  openapi/                   # Hợp đồng REST API chuẩn (OpenAPI 3.1)
+  events/                    # Hợp đồng sự kiện tích hợp (JSON Schema Draft 2020-12)
+  reporting/                 # Sẽ tạo: dataset, scope key và RLS mapping
+  exports/                   # Sẽ tạo: schema định dạng mở và từ điển dữ liệu
+services/
+  p_process/                 # Lõi quy trình Fastify TypeScript (Hexagonal Architecture)
+    src/domain/              # Domain models, invariants và types thuần túy
+    src/application/         # Use cases và application ports
+    src/adapters/http/       # Inbound HTTP adapter (Fastify routes, /health)
+    src/adapters/postgres/   # Outbound PostgreSQL adapter, Drizzle ORM, migrations
+  p_automation/              # Node-RED flows: chỉ lập lịch và chuyển giao tích hợp
+  h_human/                   # Odoo 17, custom addons và adapter P
+  d_data/                    # Superset, dataset và PostgreSQL init
+  i_intelligence/            # FastAPI, Haystack RAG, Qdrant vector store
+  notification/              # Sẽ tạo: SMTP/notification adapter và Mailpit
+apps/
+  web/                       # Sẽ tạo: DX-Portal, form và Dashboard
+infra/                       # Sẽ tạo: Compose profiles, Caddy và Keycloak
 fixtures/                    # Sẽ tạo: dữ liệu demo và test xác định
+scripts/
+  test-architecture.py       # Kiểm thử kiến trúc tự động (khóa tag, cấm secret, hợp đồng)
 docs/                        # Kiến trúc, API và triển khai
 ```
 
 Kiến trúc đích có ba profile thành phần: `core`, `demo`, `ai`. Tên lệnh và overlay chính xác chỉ được công bố sau khi chúng tồn tại và được kiểm chứng. `dev`, `test` và `demo` là các môi trường tách biệt, không phải tên thay thế cho profile.
+
+## Kiểm thử kiến trúc tự động
+
+Để đảm bảo các quy tắc kiến trúc (khóa phiên bản dependency, cấm tag `:latest`, không lộ secret, tuân thủ cấu trúc phân tầng lục giác, hợp đồng giao tiếp chuẩn và migration kỹ thuật ban đầu), dự án cung cấp bộ kiểm thử kiến trúc tự động:
+
+```bash
+# Chạy kiểm thử kiến trúc toàn diện
+python scripts/test-architecture.py
+
+# Kiểm tra tính hợp lệ của manifest dịch vụ lõi P
+node -e "require('./services/p_process/package.json')"
+```
 
 ## Tài liệu
 

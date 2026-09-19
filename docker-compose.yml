@@ -59,14 +59,14 @@ services:
   # ----------------------------------------------------------------------------
   node-red:
     build:
-      context: ./services/p_process
+      context: ./services/p_automation
       dockerfile: Dockerfile
     container_name: dxlab-node-red
     restart: unless-stopped
     ports:
       - "${NODE_RED_PORT:-1880}:1880"
     volumes:
-      - ./services/p_process/data:/data
+      - ./services/p_automation/data:/data
     networks:
       - dxlab-network
 
@@ -112,7 +112,7 @@ services:
   # TẦNG I: MÔ HÌNH NGÔN NGỮ CỤC BỘ (Ollama)
   # ----------------------------------------------------------------------------
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.34.2
     container_name: dxlab-ollama
     restart: unless-stopped
     ports:

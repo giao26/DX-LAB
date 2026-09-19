@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dx-lab.org/schemas/events/event-envelope.schema.json",
+  "title": "EventEnvelope",
+  "description": "Standard transactional outbox integration event envelope (AD-3, AD-21)",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "aggregate_id",
+    "aggregate_version",
+    "occurred_at",
+    "actor_sub",
+    "correlation_id",
+    "causation_id",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for deduplication"
+    },
+    "event_type": {
+      "type": "string",
+      "pattern": "^[a-z_]+(\\.[a-z_]+)+\\.v[0-9]+$",
+      "description": "Dotted past-tense event type name with version suffix, e.g. ticket.assigned.v1"
+    },
+    "aggregate_id": {
+      "type": "string",
+      "description": "Identifier of the source aggregate root"
+    },
+    "aggregate_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Monotonically increasing version of the aggregate root"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC ISO 8601 timestamp when the event occurred"
+    },
+    "actor_sub": {
+      "type": "string",
+      "description": "Keycloak immutable subject identifier (sub)"
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Correlation ID traversing distributed traces"
+    },
+    "causation_id": {
+      "type": "string",
+      "description": "Identifier of the command or upstream event causing this event"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Event-specific typed data payload"
+    }
+  },
+  "additionalProperties": false
+}

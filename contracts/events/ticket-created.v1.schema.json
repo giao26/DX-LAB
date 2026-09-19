@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dx-lab.org/schemas/events/ticket-created.v1.schema.json",
+  "title": "TicketCreatedV1",
+  "description": "Payload schema for ticket.created.v1 integration event",
+  "type": "object",
+  "required": [
+    "ticket_id",
+    "ticket_code",
+    "title",
+    "description",
+    "provisional_type",
+    "customer_email",
+    "customer_phone",
+    "customer_name",
+    "created_at"
+  ],
+  "properties": {
+    "ticket_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "ticket_code": {
+      "type": "string",
+      "pattern": "^TCK-[0-9]{4}-[0-9]+$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "provisional_type": {
+      "type": "string"
+    },
+    "customer_email": {
+      "type": "string",
+      "format": "email"
+    },
+    "customer_phone": {
+      "type": "string"
+    },
+    "customer_name": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

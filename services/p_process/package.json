@@ -1,13 +1,27 @@
 {
-  "name": "dxlab-node-red",
+  "name": "dxlab-p-process",
   "version": "0.1.0",
-  "description": "DX-LAB Process Automation & Workflow Service",
-  "license": "AGPL-3.0",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/dx-lab/dx-os.git"
+  "description": "DX-LAB Process Core Service (Fastify / TypeScript)",
+  "private": true,
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc && node dist/index.js",
+    "pretest": "tsc",
+    "test": "node --test",
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "node-red": "^3.1.9"
+    "drizzle-orm": "0.45.2",
+    "fastify": "5.12.5",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.6",
+    "@types/pg": "8.23.0",
+    "drizzle-kit": "0.31.8",
+    "typescript": "6.0.3"
   }
 }

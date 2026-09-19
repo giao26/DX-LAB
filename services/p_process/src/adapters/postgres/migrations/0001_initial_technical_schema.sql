@@ -1,10 +1,11 @@
 -- =============================================================================
--- DX-LAB (DX-OS) - PostgreSQL Initial Database Schema
--- Defines dx_core schema and technical foundation tables:
+-- DX-LAB (DX-OS) - Initial Technical Schema Migration
+-- Defines dx_core schema and foundation tables:
 --   - audit_logs (AD-12)
 --   - outbox_events (AD-3, AD-21)
 --   - idempotency_keys (AD-3)
--- Matches services/p_process/src/adapters/postgres/migrations/0001_initial_technical_schema.sql
+-- Note: Business tables (tickets, assignments, csat, sop) are strictly deferred
+-- to subsequent stories per Story 1.1 AC 2.
 -- Copyright (C) 2026 DX-LAB Development Team
 -- License: AGPL-3.0
 -- =============================================================================

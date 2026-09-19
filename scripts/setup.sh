@@ -26,7 +26,7 @@ fi
 # 2. Tạo các thư mục dữ liệu cục bộ cần thiết nếu chưa có
 echo "[INFO] Khởi tạo các thư mục lưu trữ dữ liệu..."
 mkdir -p services/d_data/postgres/init
-mkdir -p services/p_process/data
+mkdir -p services/p_automation/data
 mkdir -p services/h_human/addons
 mkdir -p services/i_intelligence/qdrant/config
 mkdir -p dist

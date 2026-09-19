@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dx-lab.org/schemas/events/ticket-assigned.v1.schema.json",
+  "title": "TicketAssignedV1",
+  "description": "Payload schema for ticket.assigned.v1 integration event",
+  "type": "object",
+  "required": [
+    "ticket_id",
+    "ticket_code",
+    "assigned_staff_id",
+    "group_id",
+    "assigned_at"
+  ],
+  "properties": {
+    "ticket_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "ticket_code": {
+      "type": "string",
+      "pattern": "^TCK-[0-9]{4}-[0-9]+$"
+    },
+    "assigned_staff_id": {
+      "type": "string"
+    },
+    "group_id": {
+      "type": "string"
+    },
+    "assigned_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

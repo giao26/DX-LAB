@@ -1,0 +1,256 @@
+openapi: 3.1.0
+info:
+  title: DX-LAB Process Core (P) API
+  version: 0.1.0
+  description: >-
+    Hợp đồng giao tiếp RESTful API chuẩn của dịch vụ lõi P cho các tác vụ
+    tiếp nhận, điều phối và tra cứu quy trình nghiệp vụ số DX-OS.
+  license:
+    name: AGPL-3.0
+    url: https://www.gnu.org/licenses/agpl-3.0.html
+servers:
+  - url: http://localhost:3000
+    description: Cục bộ (Local Development)
+  - url: http://p-process:3000
+    description: Mạng nội bộ Docker Compose (application network)
+
+paths:
+  /health:
+    get:
+      summary: Kiểm tra trạng thái sẵn sàng của dịch vụ
+      operationId: getHealth
+      responses:
+        '200':
+          description: Dịch vụ đang hoạt động bình thường
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/v1/tickets:
+    post:
+      summary: Tiếp nhận yêu cầu mới (Ticket Intake)
+      operationId: createTicket
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Khóa định danh thao tác duy nhất để chống lặp (AD-3)
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TicketCreateRequest'
+      responses:
+        '201':
+          description: Tiếp nhận thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+        '400':
+          description: Yêu cầu không hợp lệ
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: Xung đột dữ liệu hoặc vi phạm bất biến nghiệp vụ
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+    get:
+      summary: Tra cứu danh sách ticket
+      operationId: listTickets
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [WAITING, IN_PROGRESS, CLOSED]
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: Danh sách ticket
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - items
+                  - total
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Ticket'
+                  total:
+                    type: integer
+
+  /api/v1/tickets/{ticketId}:
+    get:
+      summary: Tra cứu chi tiết ticket theo ID
+      operationId: getTicketById
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Chi tiết ticket
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+        '404':
+          description: Không tìm thấy ticket
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - service
+        - version
+        - timestamp
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: p_process
+        version:
+          type: string
+          example: 0.1.0
+        timestamp:
+          type: string
+          format: date-time
+
+    ProblemDetails:
+      type: object
+      required:
+        - type
+        - title
+        - status
+        - detail
+      properties:
+        type:
+          type: string
+          format: uri
+          example: about:blank
+        title:
+          type: string
+          example: Bad Request
+        status:
+          type: integer
+          example: 400
+        detail:
+          type: string
+          example: Trường tiêu đề không được để trống
+        instance:
+          type: string
+          example: /api/v1/tickets
+
+    TicketCreateRequest:
+      type: object
+      required:
+        - title
+        - description
+        - customerEmail
+        - customerPhone
+        - customerName
+      properties:
+        title:
+          type: string
+          minLength: 5
+          maxLength: 255
+        description:
+          type: string
+          minLength: 10
+        customerEmail:
+          type: string
+          format: email
+        customerPhone:
+          type: string
+          description: Số điện thoại người gửi phục vụ khử trùng và liên hệ
+        customerName:
+          type: string
+          minLength: 2
+        provisionalType:
+          type: string
+
+    Ticket:
+      type: object
+      required:
+        - id
+        - code
+        - title
+        - description
+        - status
+        - customerEmail
+        - customerName
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+          example: TCK-2026-0001
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [WAITING, IN_PROGRESS, CLOSED]
+        provisionalType:
+          type: string
+        confirmedType:
+          type: string
+        assignedStaffId:
+          type: string
+        customerEmail:
+          type: string
+          format: email
+        customerPhone:
+          type: string
+        customerName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
