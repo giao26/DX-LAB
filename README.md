@@ -66,6 +66,7 @@ DX-LAB/
 ├── docs/                         # Tài liệu kỹ thuật chuyên sâu
 │   ├── architecture/             # Thuyết minh kiến trúc H-P-D-I
 │   ├── api/                      # Tài liệu quy chuẩn API liên tầng
+│   ├── bmad_team_collaboration.md # Hướng dẫn làm việc nhóm với BMad không conflict
 │   └── installation.md           # Hướng dẫn triển khai chi tiết
 ├── scripts/                      # Kịch bản tự động hóa vận hành
 │   ├── setup.sh                  # Khởi tạo môi trường
@@ -124,8 +125,9 @@ make status
 ---
 
 ## 5. Đóng Góp & Phát Triển
-Vui lòng đọc kỹ [CONTRIBUTING.md](CONTRIBUTING.md) và [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) trước khi tạo Pull Request.  
-Mọi lỗi phát sinh xin tạo báo cáo tại [Issue Tracker](../../issues).
+- Vui lòng đọc kỹ [CONTRIBUTING.md](CONTRIBUTING.md) và [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) trước khi tạo Pull Request.  
+- Xem hướng dẫn phối hợp nhóm với BMad không bị xung đột tại [docs/bmad_team_collaboration.md](docs/bmad_team_collaboration.md).  
+- Mọi lỗi phát sinh xin tạo báo cáo tại [Issue Tracker](../../issues).
 
 ---
 
