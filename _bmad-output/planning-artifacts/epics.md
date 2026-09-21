@@ -72,7 +72,7 @@ Tài liệu này sẽ chứa toàn bộ Epic và User Story của DX-LAB. Các y
 - **AR-11 — Một ingress được gia cố:** Docker Compose chia mạng public/application/data; chỉ Caddy mở cổng host, `/analytics/*` chỉ lộ runtime nhúng và mọi giao diện quản trị/dịch vụ nội bộ giữ riêng tư.
 - **AR-12 — Bằng chứng vận hành:** Audit bất biến, log JSON có cấu trúc không chứa dữ liệu nhạy cảm, readiness kiểm phụ thuộc và retry có giới hạn/quan sát được.
 - **AR-13 — Sao lưu trạng thái không thể tái tạo:** Backup adapter phải ghi checksum, ID/phiên bản đối tượng và kết quả; Qdrant được dựng lại từ nguồn công bố/embedding manifest, model và cache từ manifest cố định.
-- **AR-14 — Profile đóng góp độc lập:** Compose có `core`, `demo`, `ai`; `core` chỉ cần P, PostgreSQL và test double, còn `demo` thêm Web/Keycloak/Odoo/Node-RED/Superset và `ai` thêm Haystack/Qdrant/Ollama.
+- **AR-14 — Profile đóng góp độc lập:** Compose có `core`, `demo`, `ai`; `core` chỉ cần P, PostgreSQL và test double, còn `demo` thêm Web/Keycloak/Odoo/Node-RED/Superset và `ai` thêm Haystack/Qdrant, với OpenRouter là dependency HTTPS bên ngoài.
 - **AR-15 — Cổng xuất dữ liệu có quyền:** P sở hữu export port và áp dụng cùng chính sách vai trò, nhóm, phân công, che dữ liệu như khi đọc trực tuyến.
 - **AR-16 — Cổng gửi thông báo:** P ghi ý định và trạng thái gửi; adapter Mailpit/SMTP hoặc Node-RED thực thi nhưng P giữ quy tắc gửi một lần cho mỗi sự kiện ngữ nghĩa.
 - **AR-17 — Sàn nghiệm thu UX:** Bề mặt tùy biến và widget Odoo trọng yếu phải qua kiểm tra bàn phím, trình đọc màn hình, mobile, 320 CSS px và zoom 200% trước phát hành.
@@ -261,7 +261,7 @@ tôi muốn **dựng hệ thống từ mã nguồn bằng các profile có phạ
 
 **Cho trước** người duy trì bật thêm profile `ai`
 **Khi** cấu hình model hợp lệ
-**Thì** Haystack, Qdrant và Ollama được khởi động với model/embedding đã khóa digest
+**Thì** Haystack và Qdrant được khởi động, còn OpenRouter dùng model slug cố định `qwen/qwen3-8b` với chính sách riêng tư đã cấu hình
 **Và** core behavior vẫn có thể kiểm thử bằng fixture hoặc fake nếu profile `ai` không chạy.
 
 **Cho trước** môi trường `dev`, `test` tạm thời và `demo`

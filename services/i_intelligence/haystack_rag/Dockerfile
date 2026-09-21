@@ -14,8 +14,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt /app/
-RUN pip install --no-cache-dir -r requirements.txt
+COPY pyproject.toml uv.lock /app/
+RUN pip install --no-cache-dir uv==0.12.17 \
+    && uv sync --locked --no-dev --no-install-project
+
+ENV PATH="/app/.venv/bin:$PATH"
 
 COPY src/ /app/src/
 

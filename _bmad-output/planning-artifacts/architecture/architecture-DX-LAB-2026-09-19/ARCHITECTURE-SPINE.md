@@ -77,7 +77,7 @@ flowchart LR
 
 - **Binds:** FR-1–FR-2, FR-4, FR-8–FR-12
 - **Prevents:** Tokens and privileged service endpoints leaking into browser code.
-- **Rule:** One Next.js BFF serves Portal, H/P landing pages, ticket/CSAT forms and the unified D/I Dashboard. It stores sessions in Secure, HttpOnly, SameSite=Lax cookies. Browsers never connect directly to PostgreSQL, Superset administration, Qdrant, Ollama or I. Anonymous intake uses CSRF/origin protection, rate limiting and `Idempotency-Key`; CSAT uses an expiring single-use opaque token bound to one ticket. Ticket codes never grant access.
+- **Rule:** One Next.js BFF serves Portal, H/P landing pages, ticket/CSAT forms and the unified D/I Dashboard. It stores sessions in Secure, HttpOnly, SameSite=Lax cookies. Browsers never connect directly to PostgreSQL, Superset administration, Qdrant, OpenRouter or I. Anonymous intake uses CSRF/origin protection, rate limiting and `Idempotency-Key`; CSAT uses an expiring single-use opaque token bound to one ticket. Ticket codes never grant access.
 
 ### AD-7 — Odoo is a work surface and projection [ADOPTED]
 
@@ -107,7 +107,7 @@ flowchart LR
 
 - **Binds:** FR-1–FR-13 and quality constraints
 - **Prevents:** Public databases/admin consoles, default secrets and environment-specific routing drift.
-- **Rule:** Docker Compose runs on one host with public, application and data networks. Caddy is the only service publishing public host ports and routes Web, Odoo and Keycloak login; for Superset it exposes only the embedded runtime at `/analytics/*`, while Superset administration and all privileged APIs remain private. PostgreSQL, P internals, Node-RED editor, Keycloak admin, Qdrant and Ollama remain private; admin access is localhost or an explicit admin profile. Images and lockfiles are pinned; default credentials, wildcard CORS and `latest` tags are forbidden.
+- **Rule:** Docker Compose runs on one host with public, application and data networks. Caddy is the only service publishing public host ports and routes Web, Odoo and Keycloak login; for Superset it exposes only the embedded runtime at `/analytics/*`, while Superset administration and all privileged APIs remain private. PostgreSQL, P internals, Node-RED editor, Keycloak admin, Qdrant and I remain private; only I may send minimized data to OpenRouter over HTTPS. Admin access is localhost or an explicit admin profile. Images and lockfiles are pinned; default credentials, wildcard CORS and `latest` tags are forbidden.
 
 ### AD-12 — Audit and operations preserve evidence
 
@@ -124,8 +124,8 @@ flowchart LR
 ### AD-14 — Contribution paths are independently runnable
 
 - **Binds:** FR-13 and open-source constraints
-- **Prevents:** Small contributions requiring the full ERP, BI and local-model stack.
-- **Rule:** Compose provides `core`, `demo` and `ai` profiles. `core` runs P, PostgreSQL and test doubles; `demo` adds Web, Keycloak, Odoo, Node-RED and Superset; `ai` adds Haystack, Qdrant and Ollama. Core tests and the first-contribution path do not download a model. The product remains AGPL-3.0 with SPDX/file notices, LICENSE/NOTICE, dependency and model-license inventory, public build/configuration instructions, README, changelog, issue/PR path, and a SemVer release artifact in open formats. CI enforces behavior tests, migrations, lockfiles, image pins and these release checks.
+- **Prevents:** Small contributions requiring the full ERP, BI or hosted inference credentials.
+- **Rule:** Compose provides `core`, `demo` and `ai` profiles. `core` runs P, PostgreSQL and test doubles; `demo` adds Web, Keycloak, Odoo, Node-RED and Superset; `ai` adds Haystack and Qdrant while OpenRouter remains an external HTTPS dependency. Core tests and the first-contribution path use deterministic fixtures without a network call or API key. The product remains AGPL-3.0 with SPDX/file notices, LICENSE/NOTICE, dependency and model-license inventory, public build/configuration instructions, README, changelog, issue/PR path, and a SemVer release artifact in open formats. CI enforces behavior tests, migrations, lockfiles, image pins and these release checks.
 
 ### AD-15 — Exports remain tool-independent
 
@@ -222,9 +222,9 @@ Verified on 2026-09-19. Patch updates remain allowed after compatibility and mig
 | Python / FastAPI | 3.13.15 / 0.141.1 |
 | Haystack | 3.1.1 |
 | `qdrant-haystack` / `qdrant-client` | 10.5.0 / 1.19.1 |
-| `ollama-haystack` | 6.8.0 |
+| `httpx` | 0.27.0 |
 | Qdrant | 1.19.1 |
-| Ollama | 0.34.2 |
+| OpenRouter API | External HTTPS service |
 | Caddy | 2.11.4 |
 | Mailpit | 1.31.1 |
 
@@ -283,7 +283,7 @@ flowchart TB
     SUPER --> SDB[(Superset metadata)]
     SUPER --> REPORT[(P reporting views)]
     AI --> Q[(Qdrant)]
-    AI --> LLM[Ollama]
+    AI --> LLM[OpenRouter HTTPS]
   end
 ```
 

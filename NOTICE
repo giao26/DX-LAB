@@ -44,9 +44,13 @@ Copyright (C) 2026 DX-LAB Development Team
      Copyright (C) deepset GmbH
      Giấy phép: Apache License 2.0
 
-   - Ollama:
-     Copyright (C) Ollama contributors
-     Giấy phép: MIT License (OSI-approved, Permissive)
+   - Qwen3-8B model weights (requested from the external OpenRouter service):
+     Copyright (C) Alibaba Cloud
+     Giấy phép: Apache License 2.0
+
+   OpenRouter là dịch vụ hosted bên ngoài, không phải thành phần nguồn mở được
+   phân phối hoặc bundle cùng DX-LAB. Điều khoản dịch vụ của nhà cung cấp áp dụng
+   riêng cho các lệnh gọi API do người vận hành cấu hình.
 
 3. LIÊN HỆ VÀ ĐÓNG GÓP:
    Mọi chi tiết đóng góp và báo cáo lỗi xin gửi qua hệ thống Issue Tracker

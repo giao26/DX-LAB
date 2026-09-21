@@ -19,7 +19,7 @@ DX-LAB là dự án phần mềm nguồn mở phục vụ demo OLP 2026. Sản p
 | **P (Automation)** | `services/p_automation/` | Node-RED 5 / Node.js | Lập lịch (cron) và chuyển giao tích hợp (delivery adapter). | **Không chứa bất biến nghiệp vụ**, không đọc/ghi trực tiếp DB của P. |
 | **H (Human / ERP)** | `services/h_human/` | Odoo 17 CE / Python | Giao diện xử lý của nhân viên, chat nội bộ, rà soát bản nháp SOP. | Lưu projection tối thiểu; mọi thay đổi trạng thái gọi qua API của P. |
 | **D (Data / BI)** | `services/d_data/` | Apache Superset 6 / PostgreSQL | Trực quan hóa chỉ số vận hành và Dashboard điều hành. | Chỉ đọc các SQL reporting views do P sở hữu thông qua scoped guest token. |
-| **I (Intelligence)** | `services/i_intelligence/` | Haystack 3 / Qdrant / Ollama | Dịch vụ cố vấn (Advisory): phân loại yêu cầu, phát hiện nút thắt, gợi ý SOP. | Chỉ xử lý dữ liệu đã ẩn danh/giảm thiểu; không tự ý thay đổi ticket hay xuất bản SOP. |
+| **I (Intelligence)** | `services/i_intelligence/` | Haystack 3 / Qdrant / OpenRouter | Dịch vụ cố vấn (Advisory): phân loại yêu cầu, phát hiện nút thắt, gợi ý SOP. | Chỉ xử lý dữ liệu đã ẩn danh/giảm thiểu; không tự ý thay đổi ticket hay xuất bản SOP. |
 | **Caddy Ingress** | `infra/caddy/` | Caddy 2.11 | Cổng vào công khai duy nhất cho Web, Odoo, Keycloak và `/analytics/*`. | AD-11: Cổng host duy nhất (80, 443); bảo vệ các dịch vụ nội bộ. |
 | **Contracts** | `contracts/` | OpenAPI 3.1 / JSON Schema 2020-12 | Nguồn hợp đồng giao tiếp chuẩn duy nhất giữa các dịch vụ. | Bắt buộc cho toàn bộ REST API (`openapi/`) và sự kiện outbox (`events/`). |
 
@@ -59,7 +59,9 @@ docs/                        # Kiến trúc, API và triển khai
 | --- | --- | --- | --- | --- | --- |
 | **`core`** | `p-process`, `postgres` | 2 cores | 2 GB | 10 GB | Phát triển cốt lõi, kiểm thử nhanh; **không tải AI** |
 | **`demo`** | `core` + `caddy`, `keycloak`, `odoo`, `node-red`, `superset`, `mailpit` | 4 cores | 8 GB | 20 GB | Trình diễn luồng H→P→D qua Caddy ingress |
-| **`ai`** | `core` + `qdrant`, `ollama`, `haystack-rag` | 8 cores | 16 GB | 40 GB | Mô hình ngôn ngữ cục bộ và pipeline RAG |
+| **`ai`** | `core` + `qdrant`, `haystack-rag`; OpenRouter bên ngoài | 4 cores | 4 GB | 15 GB | Pipeline RAG dùng suy luận hosted qua HTTPS |
+
+Trước khi chạy `ai`, đặt `OPENROUTER_API_KEY` trong `.env` đã bị Git ignore. Model sinh được cố định trong backend là `qwen/qwen3-8b`; không đưa khóa vào browser hoặc source. Dùng `AI_PROVIDER=fixture` để phát triển và chạy test hoàn toàn offline.
 
 ## Hướng dẫn Quick Start (Profile `core` không cần AI)
 

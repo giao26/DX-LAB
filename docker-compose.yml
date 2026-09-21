@@ -5,12 +5,12 @@
 # Profiles:
 #   - core: P (Fastify TypeScript) + PostgreSQL (lightweight development harness)
 #   - demo: core + Caddy (single ingress) + Keycloak + Odoo + Node-RED + Superset + Mailpit
-#   - ai: core + Qdrant + Haystack + Ollama
+#   - ai: core + Qdrant + Haystack; OpenRouter is an external HTTPS dependency
 #
 # Networks (AD-11):
 #   - public-net: Caddy ingress only (ports 80, 443)
 #   - app-net: Internal application communication (P, Odoo, Node-RED, Keycloak, Superset, Mailpit)
-#   - data-net: Private database and AI vector storage (PostgreSQL, Qdrant, Ollama)
+#   - data-net: Private database and AI vector storage (PostgreSQL, Qdrant)
 #
 # Copyright (C) 2026 DX-LAB Development Team
 # License: AGPL-3.0
@@ -209,20 +209,6 @@ services:
       - data-net
 
   # ----------------------------------------------------------------------------
-  # TẦNG I: MÔ HÌNH NGÔN NGỮ CỤC BỘ (Ollama 0.34.2)
-  # ----------------------------------------------------------------------------
-  ollama:
-    image: ollama/ollama:0.34.2
-    container_name: dxlab-ollama
-    restart: unless-stopped
-    profiles:
-      - ai
-    volumes:
-      - ollama_models:/root/.ollama
-    networks:
-      - data-net
-
-  # ----------------------------------------------------------------------------
   # TẦNG I: TRÍ TUỆ NHÂN TẠO & RAG (Haystack RAG Service)
   # ----------------------------------------------------------------------------
   haystack-rag:
@@ -235,13 +221,14 @@ services:
       - ai
     depends_on:
       - qdrant
-      - ollama
       - postgres
     environment:
       QDRANT_HOST: qdrant
       QDRANT_PORT: 6333
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
+      AI_PROVIDER: ${AI_PROVIDER:-openrouter}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_TIMEOUT_SECONDS: ${OPENROUTER_TIMEOUT_SECONDS:-30}
       POSTGRES_HOST: postgres
       POSTGRES_DB: ${POSTGRES_DB:-dxlab_db}
     volumes:
@@ -263,7 +250,6 @@ volumes:
   odoo_data:
   superset_home:
   qdrant_storage:
-  ollama_models:
   caddy_data:
   caddy_config:
   mailpit_data:

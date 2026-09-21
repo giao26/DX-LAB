@@ -33,11 +33,11 @@ RESOURCE_STANDARDS = {
         "desc": "Complete showcase environment (Web, Odoo, Keycloak, Superset, Caddy)"
     },
     "ai": {
-        "name": "AI Profile (Vector Store + Local LLM + RAG)",
-        "min_cpu": 8,
-        "min_ram_gb": 16.0,
-        "min_disk_gb": 40.0,
-        "desc": "Intelligence advisory services (Qdrant, Ollama, Haystack RAG)"
+        "name": "AI Profile (Vector Store + Hosted Inference + RAG)",
+        "min_cpu": 4,
+        "min_ram_gb": 4.0,
+        "min_disk_gb": 15.0,
+        "desc": "Intelligence advisory services (Qdrant, Haystack, external OpenRouter)"
     }
 }
 
@@ -45,7 +45,7 @@ RESOURCE_STANDARDS = {
 PROFILE_SERVICES = {
     "core": ["postgres", "p-process"],
     "demo": ["postgres", "p-process", "caddy", "keycloak", "odoo", "node-red", "superset", "mailpit"],
-    "ai": ["postgres", "p-process", "qdrant", "ollama", "haystack-rag"]
+    "ai": ["postgres", "p-process", "qdrant", "haystack-rag"]
 }
 
 
@@ -239,6 +239,24 @@ def check_service_readiness(target_profile: str, repo_root: Path) -> int:
                 print(f" [PASS] P-Process container is {p_state}")
             else:
                 all_ready = False
+
+    # Check I readiness inside its private network. /ready validates configuration only
+    # and never sends a paid request to OpenRouter.
+    if "haystack-rag" in expected_services and docker_running:
+        try:
+            cmd = [
+                "docker", "compose", "exec", "-T", "haystack-rag", "python", "-c",
+                "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=5)",
+            ]
+            exec_proc = subprocess.run(cmd, capture_output=True, cwd=str(repo_root), timeout=8)
+            if exec_proc.returncode == 0:
+                print(" [PASS] Haystack provider configuration is ready (no external inference call made)")
+            else:
+                print(" [FAIL] Haystack provider configuration is not ready; check provider, HTTPS URL, API key, and timeout")
+                all_ready = False
+        except Exception:
+            print(" [FAIL] Could not verify Haystack internal /ready endpoint")
+            all_ready = False
 
     return 0 if all_ready else 1
 

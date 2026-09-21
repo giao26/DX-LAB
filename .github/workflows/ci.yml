@@ -34,6 +34,14 @@ jobs:
         run: |
           python scripts/test-architecture.py
 
+      - name: Run Intelligence Provider Unit Tests (Offline)
+        env:
+          AI_PROVIDER: fixture
+        run: |
+          python -m pip install uv==0.12.17
+          uv lock --check --project services/i_intelligence/haystack_rag
+          uv run --locked --project services/i_intelligence/haystack_rag --extra test python -m pytest services/i_intelligence/haystack_rag/tests tests/test_openrouter_architecture.py -q
+
       - name: Check License Headers in Python Files
         run: |
           echo "Checking copyright notices in Python scripts..."
@@ -45,4 +53,4 @@ jobs:
 
       - name: Lint Python Code
         run: |
-          python -m py_compile services/i_intelligence/haystack_rag/src/*.py || true
+          python -m compileall -q services/i_intelligence/haystack_rag/src

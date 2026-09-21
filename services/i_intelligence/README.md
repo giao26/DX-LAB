@@ -1,13 +1,12 @@
-# Tầng I: Intelligence Layer (AI & Local RAG)
+# Tầng I: Intelligence Layer (AI & RAG)
 
-Thư mục này quản lý toàn bộ hạ tầng trí tuệ nhân tạo (AI) chạy cục bộ (On-premise), bảo đảm an toàn dữ liệu và tuân thủ các chuẩn mở.
+Thư mục này quản lý pipeline RAG cục bộ và adapter suy luận hosted. Qdrant lưu chỉ mục có thể tái tạo; OpenRouter chỉ được gọi từ backend I bằng HTTPS.
 
 ## Các Công Nghệ Thành Phần:
 - **Qdrant**: Cơ sở dữ liệu Vector hiệu năng cao viết bằng Rust, lưu trữ và tìm kiếm vector embeddings của tri thức doanh nghiệp.
 - **Haystack AI (v2.x)**: Framework RAG mạnh mẽ kết nối tìm kiếm văn bản liên quan và mô hình ngôn ngữ lớn.
-- **Ollama**: Công cụ chạy LLM cục bộ (Local LLM Server như Qwen 2.5, Llama 3) qua giao tiếp API tương thích OpenAI.
+- **OpenRouter**: Dịch vụ suy luận HTTPS bên ngoài, gọi model cố định `qwen/qwen3-8b`; khóa chỉ đến từ biến môi trường backend.
 
 ## Cấu Trúc:
 - `qdrant/config/config.yaml`: Cấu hình storage, port và telemetry cho Qdrant.
-- `haystack_rag/`: Dịch vụ FastAPI cung cấp API hỏi đáp RAG liên kết với Qdrant và Ollama.
-- `ollama/Modelfile`: Định nghĩa prompt template và tham số cho mô hình ngôn ngữ lớn nội bộ.
+- `haystack_rag/`: Dịch vụ FastAPI cung cấp API hỏi đáp RAG, fixture offline và adapter OpenRouter.

@@ -38,9 +38,11 @@ docker compose --profile core up -d
 # Khởi chạy profile demo (thêm Caddy, Keycloak, Odoo, Node-RED, Superset, Mailpit)
 docker compose --profile demo up -d
 
-# Khởi chạy profile ai (thêm Qdrant, Ollama, Haystack RAG)
+# Khởi chạy profile ai (thêm Qdrant và Haystack RAG; cần cấu hình khóa OpenRouter)
 docker compose --profile ai up -d
 ```
+
+Profile `ai` yêu cầu đặt `OPENROUTER_API_KEY` trong `.env` ignored. `OPENROUTER_BASE_URL` phải dùng HTTPS. Có thể đặt `AI_PROVIDER=fixture` cho kiểm thử hoặc phát triển offline; chế độ này không gọi Internet và không cần API key.
 
 ### Bước 4: Kiểm tra trạng thái sức khỏe & readiness
 
@@ -72,16 +74,15 @@ python scripts/test-architecture.py
 | --- | --- | --- | --- | --- | --- |
 | **`core`** | `p-process`, `postgres` | 2 cores | 2 GB | 10 GB | Phát triển nghiệp vụ cốt lõi, kiểm thử unit/contract; **không tải AI hay ERP** |
 | **`demo`** | `core` + `caddy`, `keycloak`, `odoo`, `node-red`, `superset`, `mailpit` | 4 cores | 8 GB | 20 GB | Trình diễn toàn diện luồng H→P→D qua Caddy ingress |
-| **`ai`** | `core` + `qdrant`, `ollama`, `haystack-rag` | 8 cores | 16 GB | 40 GB | Khởi động mô hình ngôn ngữ cục bộ và pipeline RAG |
+| **`ai`** | `core` + `qdrant`, `haystack-rag`; OpenRouter bên ngoài | 4 cores | 4 GB | 15 GB | Pipeline RAG dùng suy luận hosted qua HTTPS |
 
 > [!TIP]
-> Nếu máy tính cá nhân không đủ 16 GB RAM cho profile `ai`, hãy sử dụng profile `core` để phát triển và kiểm thử hành vi nghiệp vụ. Mọi logic cốt lõi đều được kiểm thử đầy đủ qua fixture mà không cần mô hình AI.
+> Nếu máy tính cá nhân không đủ tài nguyên cho profile `ai` hoặc không có khóa OpenRouter, hãy sử dụng profile `core` để phát triển và kiểm thử hành vi nghiệp vụ. Mọi logic cốt lõi đều được kiểm thử đầy đủ qua fixture mà không cần gọi dịch vụ AI.
 
 ## Cấu trúc mạng và bảo mật ingress (AD-11, NFR-14)
 
 - **`public-net`**: Chỉ có dịch vụ **Caddy** mở cổng công khai ra máy host (`80:80`, `443:443`).
 - **`app-net`**: Mạng ứng dụng nội bộ (`p-process`, `odoo`, `keycloak`, `node-red`, `superset`, `mailpit`).
-- **`data-net`**: Mạng dữ liệu riêng biệt (`postgres`, `qdrant`, `ollama`).
+- **`data-net`**: Mạng dữ liệu riêng biệt (`postgres`, `qdrant`). OpenRouter là dependency HTTPS bên ngoài; API key chỉ được nạp từ môi trường của `haystack-rag`.
 - **Tuyệt đối không mở cổng trực tiếp** của PostgreSQL, P nội bộ, Node-RED editor, Superset admin hay Keycloak admin ra môi trường mạng công khai.
 - Superset chỉ được truy cập qua Caddy tại đường dẫn nhúng `/analytics/*`; toàn bộ trang quản trị Superset được giữ kín trong mạng nội bộ.
-

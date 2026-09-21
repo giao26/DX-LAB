@@ -14,7 +14,8 @@ Dự án **DX-LAB (DX-OS)** tuân thủ nghiêm ngặt nguyên tắc **không nh
 | **Apache Superset** | 4.0+ | Apache-2.0 | Tầng D: Khám phá, trực quan hóa và dashboard phân tích dữ liệu | [superset.apache.org](https://superset.apache.org/) |
 | **Qdrant** | v1.11+ | Apache-2.0 | Tầng I: Cơ sở dữ liệu Vector lưu trữ vector embeddings | [qdrant.tech](https://qdrant.tech/) |
 | **Haystack AI** | 2.x | Apache-2.0 | Tầng I: Framework xây dựng RAG pipelines và AI agent | [haystack.deepset.ai](https://haystack.deepset.ai/) |
-| **Ollama** | 0.3+ | MIT | Tầng I: Khởi chạy và suy luận mô hình ngôn ngữ lớn (Local LLM) | [ollama.com](https://ollama.com/) |
+| **OpenRouter** | Hosted service | Proprietary service terms | Tầng I: API suy luận tương thích OpenAI qua HTTPS; không được bundle trong repository | [openrouter.ai](https://openrouter.ai/) |
+| **Qwen3-8B** | `qwen/qwen3-8b` | Apache-2.0 | Model sinh được yêu cầu cố định qua OpenRouter | [Qwen/Qwen3-8B](https://huggingface.co/Qwen/Qwen3-8B) |
 
 ---
 
@@ -28,7 +29,7 @@ Dự án **DX-LAB (DX-OS)** tuân thủ nghiêm ngặt nguyên tắc **không nh
 | `pydantic` | MIT | Xác thực dữ liệu (Data validation) |
 | `qdrant-client` | Apache-2.0 | Giao tiếp API với Qdrant Vector Database |
 | `psycopg2-binary` | LGPL-3.0 | Kết nối cơ sở dữ liệu PostgreSQL |
-| `requests` | Apache-2.0 | Thực hiện các HTTP calls liên dịch vụ |
+| `httpx` 0.27.0 | BSD-3-Clause | HTTP client bất đồng bộ gọi OpenRouter với timeout hữu hạn |
 
 ---
 

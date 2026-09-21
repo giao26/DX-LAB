@@ -24,9 +24,10 @@ Verified on **2026-09-19**. These sources establish that each seed version exist
 | Haystack | 3.1.1 | [Haystack releases](https://github.com/deepset-ai/haystack/releases) |
 | `qdrant-haystack` | 10.5.0 | [PyPI](https://pypi.org/project/qdrant-haystack/) |
 | `qdrant-client` | 1.19.1 | [PyPI](https://pypi.org/project/qdrant-client/) |
-| `ollama-haystack` | 6.8.0 | [PyPI](https://pypi.org/project/ollama-haystack/) |
+| `httpx` | 0.27.0 | [PyPI](https://pypi.org/project/httpx/0.27.0/) |
 | Qdrant | 1.19.1 | [Qdrant releases](https://github.com/qdrant/qdrant/releases) |
-| Ollama | 0.34.2 | [Ollama releases](https://github.com/ollama/ollama/releases) |
+| OpenRouter API | External HTTPS service | [OpenRouter API reference](https://openrouter.ai/docs/api/reference/overview) |
+| Qwen3-8B | `qwen/qwen3-8b`, Apache-2.0 | [Model card](https://huggingface.co/Qwen/Qwen3-8B) |
 | Caddy | 2.11.4 | [Caddy releases](https://github.com/caddyserver/caddy/releases) |
 | Mailpit | 1.31.1 | [Mailpit releases](https://github.com/axllent/mailpit/releases) |
 

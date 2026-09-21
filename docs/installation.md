@@ -8,7 +8,7 @@ Kiến trúc triển khai chuẩn được quy định tại [Architecture Spine
 
 - `services/p_process/` đang chứa Node-RED 3.1; Story 1.1 sẽ chuyển nội dung này sang `services/p_automation/`.
 - Lõi TypeScript/Fastify của P, `apps/web`, `contracts/` và `infra/` chưa được tạo.
-- Compose hiện dùng một mạng chung và mở trực tiếp PostgreSQL, Odoo, Node-RED, Superset, Qdrant, Ollama và Haystack.
+- OpenRouter là dịch vụ bên ngoài; chỉ backend I nhận khóa API và thực hiện egress HTTPS.
 - `.env.example` hiện chứa giá trị mẫu có thể bị dùng nhầm như mật khẩu thật.
 - Image, dependency và model chưa được khóa đầy đủ bằng lockfile/digest/manifest.
 
@@ -22,7 +22,7 @@ services/h_human/            # Odoo Community, addon, OIDC và adapter P
 services/p_process/          # Lõi nghiệp vụ TypeScript/Fastify
 services/p_automation/       # Node-RED: lịch và chuyển giao tích hợp
 services/d_data/             # Superset, dataset và dashboard
-services/i_intelligence/     # Haystack, Qdrant và Ollama
+services/i_intelligence/     # Haystack, Qdrant và adapter OpenRouter
 contracts/openapi/           # Hợp đồng REST có phiên bản
 contracts/events/            # JSON Schema sự kiện có phiên bản
 infra/                       # Compose, Caddy, Keycloak và cấu hình môi trường
@@ -36,7 +36,7 @@ Story 1.2 phải cung cấp ba profile Compose có thể tái lập:
 | --- | --- | --- |
 | `core` | P, PostgreSQL và test doubles | Phát triển và đóng góp mà không tải Odoo, Superset hoặc model AI |
 | `demo` | `core` + Web, Keycloak, Odoo, Node-RED, Superset và Mailpit | Trình diễn luồng H→P→D và thông báo |
-| `ai` | dịch vụ I, Qdrant và Ollama bổ sung cho demo | Trình diễn phân loại, phân tích và bản nháp SOP |
+| `ai` | dịch vụ I và Qdrant; OpenRouter là dependency HTTPS bên ngoài | Trình diễn phân loại, phân tích và bản nháp SOP |
 
 Tên file overlay, lệnh chạy chính xác và fixture chỉ được công bố sau khi chúng tồn tại và vượt qua clean-host smoke test. Không sao chép lệnh từ Compose skeleton hiện tại sang tài liệu phát hành.
 
@@ -44,7 +44,7 @@ Tên file overlay, lệnh chạy chính xác và fixture chỉ được công b�
 
 - Caddy là dịch vụ duy nhất công khai cổng HTTP/HTTPS.
 - Caddy định tuyến Web, Odoo, đăng nhập Keycloak và runtime Superset được nhúng tại `/analytics/*`.
-- PostgreSQL, API nội bộ P, Node-RED editor, Superset admin, Keycloak admin, Qdrant, Ollama và Haystack nằm trong mạng riêng.
+- PostgreSQL, API nội bộ P, Node-RED editor, Superset admin, Keycloak admin, Qdrant và Haystack nằm trong mạng riêng. OpenRouter chỉ nhận request đã giảm thiểu dữ liệu qua HTTPS.
 - Truy cập quản trị chỉ qua localhost hoặc profile quản trị được bật rõ ràng.
 - Demo dùng TLS tại Caddy cho hostname cấu hình; phát triển localhost có thể dùng CA cục bộ của Caddy.
 

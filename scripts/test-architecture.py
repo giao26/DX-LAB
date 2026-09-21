@@ -24,7 +24,9 @@ IGNORE_DIRS = {
     'dist',
     '.gemini',
     '__pycache__',
-    '.pytest_cache'
+    '.pytest_cache',
+    '.uv-cache',
+    '.venv'
 }
 
 IGNORE_EXTENSIONS = {
@@ -32,6 +34,12 @@ IGNORE_EXTENSIONS = {
     '.woff', '.woff2', '.ttf', '.eot',
     '.zip', '.tar', '.gz', '.db', '.sqlite'
 }
+
+API_KEY_PATTERNS = (
+    re.compile(r'\bsk-[A-Za-z0-9]{24,}\b'),
+    re.compile(r'\bsk-or-v1-[A-Za-z0-9_-]{16,}\b'),
+)
+SAFE_API_KEY_MARKERS = ('test', 'placeholder', 'dummy', 'example')
 
 
 class ArchitectureChecker:
@@ -97,7 +105,6 @@ class ArchitectureChecker:
     def scan_no_hardcoded_secrets(self):
         """Scans source files for leaked production credentials, API keys, and private keys."""
         private_key_pattern = re.compile(r'-----BEGIN (?:[A-Z0-9_-]+ )?PRIVATE KEY-----')
-        api_key_pattern = re.compile(r'\bsk-[a-zA-Z0-9]{24,}\b')
         hardcoded_pass_pattern = re.compile(r'(?:password|secret|token)\s*[:=]\s*["\']([a-zA-Z0-9!@#$%^&*()_+=-]{16,})["\']', re.IGNORECASE)
         found_secret = False
 
@@ -127,9 +134,12 @@ class ArchitectureChecker:
                                 self.log_error("SECRET_LEAK", "Found embedded private key", file_path, line_idx)
                                 found_secret = True
 
-                            if api_key_pattern.search(line_str):
-                                self.log_error("SECRET_LEAK", "Found embedded API key pattern", file_path, line_idx)
-                                found_secret = True
+                            for api_key_pattern in API_KEY_PATTERNS:
+                                match = api_key_pattern.search(line_str)
+                                if match and not any(marker in match.group(0).lower() for marker in SAFE_API_KEY_MARKERS):
+                                    self.log_error("SECRET_LEAK", "Found embedded API key pattern", file_path, line_idx)
+                                    found_secret = True
+                                    break
 
                             # Check for hardcoded passwords in scripts or source (excluding docker-compose defaults using ${VAR:-default})
                             if hardcoded_pass_pattern.search(line_str) and '${' not in line_str:
@@ -455,15 +465,15 @@ class ArchitectureChecker:
         required_services = [
             'postgres', 'p-process', 'caddy', 'keycloak',
             'odoo', 'node-red', 'superset', 'mailpit',
-            'qdrant', 'ollama', 'haystack-rag'
+            'qdrant', 'haystack-rag'
         ]
         for req_svc in required_services:
             if req_svc not in services:
                 self.log_error("MISSING_SERVICE", f"docker-compose.yml missing required service '{req_svc}'")
 
         # 2. Check profile segregation (AR-14, AC 2)
-        # Profile core MUST only run p-process, postgres, and test doubles; NEVER odoo, superset, node-red, ollama
-        forbidden_in_core = ['odoo', 'superset', 'node-red', 'ollama', 'qdrant', 'haystack-rag']
+        # Profile core MUST only run p-process, postgres, and test doubles.
+        forbidden_in_core = ['odoo', 'superset', 'node-red', 'qdrant', 'haystack-rag']
         for fn in forbidden_in_core:
             if fn in services and 'core' in services[fn]['profiles']:
                 self.log_error("FORBIDDEN_PROFILE_SERVICE", f"Service '{fn}' has profile 'core' which violates AR-14 / Story 1.2 AC 2")
@@ -480,8 +490,8 @@ class ArchitectureChecker:
             if ds in services and 'demo' not in services[ds]['profiles']:
                 self.log_error("INVALID_PROFILE", f"Service '{ds}' must belong to profile 'demo'")
 
-        # Profile ai MUST include Qdrant, Ollama, Haystack
-        ai_services = ['qdrant', 'ollama', 'haystack-rag']
+        # Profile ai uses local Qdrant and Haystack; hosted inference stays external.
+        ai_services = ['qdrant', 'haystack-rag']
         for asvc in ai_services:
             if asvc in services and 'ai' not in services[asvc]['profiles']:
                 self.log_error("INVALID_PROFILE", f"Service '{asvc}' must belong to profile 'ai'")
@@ -519,7 +529,6 @@ class ArchitectureChecker:
             'caddy': 'caddy:2.11.4-alpine',
             'keycloak': 'quay.io/keycloak/keycloak:26.7.4',
             'mailpit': 'axllent/mailpit:v1.31.1',
-            'ollama': 'ollama/ollama:0.34.2',
             'qdrant': 'qdrant/qdrant:v1.19.1'
         }
         for svc_name, expected_img in pinned_images.items():
@@ -539,6 +548,68 @@ class ArchitectureChecker:
                 self.log_error("INVALID_COMPOSE", "p-process service must point to ./services/p_process")
 
         self.log_pass("docker-compose.yml profiles, single ingress (AD-11), network segregation, and image pins validated")
+
+    def check_ai_provider_boundary(self):
+        """Rejects local-model runtime remnants and unsafe/dynamic hosted inference configuration."""
+        compose_path = self.root_dir / 'docker-compose.yml'
+        env_path = self.root_dir / '.env.example'
+        pipeline_path = self.root_dir / 'services' / 'i_intelligence' / 'haystack_rag' / 'src' / 'pipelines' / 'rag_pipeline.py'
+        legacy_dir = self.root_dir / 'services' / 'i_intelligence' / 'ollama'
+        lock_path = self.root_dir / 'services' / 'i_intelligence' / 'haystack_rag' / 'uv.lock'
+
+        compose = compose_path.read_text(encoding='utf-8')
+        env_content = env_path.read_text(encoding='utf-8')
+        pipeline = pipeline_path.read_text(encoding='utf-8')
+
+        if re.search(r'^\s{2}ollama:\s*$', compose, re.MULTILINE) or 'ollama/ollama:' in compose:
+            self.log_error('FORBIDDEN_OLLAMA_RUNTIME', 'docker-compose.yml still defines an Ollama runtime')
+        if legacy_dir.exists():
+            self.log_error('FORBIDDEN_OLLAMA_ASSET', 'services/i_intelligence/ollama must be removed')
+        if not lock_path.is_file():
+            self.log_error('MISSING_LOCKFILE', 'services/i_intelligence/haystack_rag/uv.lock is required')
+
+        required_env = ['AI_PROVIDER=openrouter', 'OPENROUTER_BASE_URL=https://', 'OPENROUTER_API_KEY=', 'OPENROUTER_TIMEOUT_SECONDS=']
+        for token in required_env:
+            if token not in env_content:
+                self.log_error('MISSING_OPENROUTER_CONFIG', f'.env.example missing safe configuration token {token!r}')
+        key_line = next((line for line in env_content.splitlines() if line.startswith('OPENROUTER_API_KEY=')), None)
+        if key_line != 'OPENROUTER_API_KEY=':
+            self.log_error('OPENROUTER_SECRET_LEAK', '.env.example must keep OPENROUTER_API_KEY empty')
+
+        if 'OPENROUTER_MODEL = "qwen/qwen3-8b"' not in pipeline:
+            self.log_error('UNPINNED_AI_MODEL', 'generation model must be the fixed qwen/qwen3-8b slug')
+        forbidden_model_tokens = ['openrouter/auto', ':latest', '/latest']
+        for token in forbidden_model_tokens:
+            if token in compose.lower() or token in pipeline.lower():
+                self.log_error('DYNAMIC_AI_MODEL', f'forbidden dynamic model selector found: {token}')
+        if '"zdr": True' not in pipeline or '"data_collection": "deny"' not in pipeline or '"require_parameters": True' not in pipeline:
+            self.log_error('MISSING_PROVIDER_PRIVACY', 'OpenRouter request must enforce ZDR, deny data collection, and require parameters')
+
+        compose_proc = subprocess.run(
+            ['docker', 'compose', '--env-file', '.env.example', '--profile', 'ai', 'config', '--format', 'json'],
+            capture_output=True,
+            text=True,
+            cwd=str(self.root_dir),
+        )
+        if compose_proc.returncode != 0:
+            self.log_error('COMPOSE_RESOLUTION_FAILED', 'Could not resolve the ai Compose profile')
+        else:
+            try:
+                resolved = json.loads(compose_proc.stdout)
+                ai_env = resolved['services']['haystack-rag']['environment']
+                expected_ai_env = {
+                    'AI_PROVIDER': 'openrouter',
+                    'OPENROUTER_BASE_URL': 'https://openrouter.ai/api/v1',
+                    'OPENROUTER_API_KEY': '',
+                    'OPENROUTER_TIMEOUT_SECONDS': '30',
+                }
+                for name, expected in expected_ai_env.items():
+                    if ai_env.get(name) != expected:
+                        self.log_error('INVALID_RESOLVED_AI_ENV', f'haystack-rag {name} must resolve to the safe example value')
+            except (json.JSONDecodeError, KeyError, TypeError):
+                self.log_error('INVALID_RESOLVED_AI_ENV', 'Resolved Compose output lacks haystack-rag environment mapping')
+
+        self.log_pass('OpenRouter HTTPS, secret, privacy, fixed-model, and no-Ollama runtime boundary validated')
 
     def check_caddy_ingress(self):
         """Verifies infra/caddy/Caddyfile configuration."""
@@ -623,7 +694,8 @@ class ArchitectureChecker:
                 'COMPOSE_PROFILES', 'POSTGRES_DB', 'POSTGRES_USER',
                 'DATABASE_URL', 'KEYCLOAK_ADMIN', 'KEYCLOAK_DB',
                 'ODOO_DB_USER', 'SUPERSET_SECRET_KEY', 'MAILPIT_SMTP_PORT',
-                'OLLAMA_MODEL'
+                'AI_PROVIDER', 'OPENROUTER_BASE_URL', 'OPENROUTER_API_KEY',
+                'OPENROUTER_TIMEOUT_SECONDS'
             ]
             for rev in required_env_vars:
                 if rev not in env_content:
@@ -650,18 +722,24 @@ class ArchitectureChecker:
             self.log_error("MISSING_SCRIPT", "Required script 'scripts/check-health.py' does not exist")
         else:
             proc_health = subprocess.run(
-                [sys.executable, str(check_health_script), '--check-resources'],
+                [sys.executable, str(check_health_script), '--profile', 'ai', '--check-resources'],
                 capture_output=True,
                 text=True,
                 cwd=str(self.root_dir)
             )
-            if proc_health.returncode != 0:
+            expected_standard = [
+                'Target Profile: AI',
+                'Required >= 4,',
+                'Required >= 4.0 GB,',
+                'Required >= 15.0 GB,',
+            ]
+            if proc_health.returncode not in (0, 1) or any(token not in proc_health.stdout for token in expected_standard):
                 self.log_error(
                     "SCRIPT_EXEC_FAILURE",
-                    f"scripts/check-health.py --check-resources failed with exit code {proc_health.returncode}: {proc_health.stderr.strip()}"
+                    "scripts/check-health.py --profile ai --check-resources did not report the deterministic 4 CPU / 4 GB RAM / 15 GB disk standard"
                 )
 
-        self.log_pass(".env.example, load-fixtures.py (--dry-run), and check-health.py (--check-resources) executed and validated")
+        self.log_pass(".env.example, load-fixtures.py (--dry-run), and ai resource standards executed and validated")
 
     def run_all(self) -> int:
         print("==============================================================================")
@@ -675,6 +753,7 @@ class ArchitectureChecker:
         self.check_initial_migration()
         self.check_contracts()
         self.check_docker_compose()
+        self.check_ai_provider_boundary()
         self.check_caddy_ingress()
         self.check_fixtures()
         self.check_environment_and_scripts()

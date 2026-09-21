@@ -5,11 +5,15 @@ Mọi thay đổi quan trọng của dự án **DX-LAB (DX-OS)** sẽ được g
 
 ## [Unreleased]
 
+### Đã thay đổi (Changed)
+- Thay runtime Ollama bằng adapter OpenRouter bất đồng bộ dùng model cố định `qwen/qwen3-8b`, chính sách ZDR/data-collection deny và fixture offline cho CI.
+- Giảm chuẩn tài nguyên profile `ai` vì không còn tải hoặc chạy mô hình ngôn ngữ cục bộ.
+
 ### Kế hoạch phát triển (Planned)
 - Hoàn thiện module `dx_core` trên Odoo để quản lý hồ sơ nhân viên và phân quyền RBAC.
 - Xây dựng luồng workflow tự động hóa xác thực dữ liệu trên Node-RED.
 - Cấu hình semantic layer và bảng điều khiển trực quan hóa dữ liệu trên Apache Superset.
-- Tích hợp pipeline RAG với Haystack, cơ sở dữ liệu vector Qdrant và mô hình ngôn ngữ lớn cục bộ qua Ollama.
+- Hoàn thiện indexing RAG trên nguồn tri thức đã công bố và embedding manifest.
 
 ---
 

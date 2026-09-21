@@ -16,7 +16,7 @@ Trình bày phương án kỹ thuật hoặc luồng hoạt động của tính 
 - [ ] Tầng H: Human / ERP (Odoo)
 - [ ] Tầng P: Process / Automation (Node-RED)
 - [ ] Tầng D: Data & Analytics (PostgreSQL / Superset)
-- [ ] Tầng I: Intelligence (Qdrant / Haystack / Ollama)
+- [ ] Tầng I: Intelligence (Qdrant / Haystack / OpenRouter)
 
 **Bối cảnh hoặc tài liệu bổ sung (Additional Context)**
 Đính kèm các liên kết hoặc sơ đồ mô tả ý tưởng.
