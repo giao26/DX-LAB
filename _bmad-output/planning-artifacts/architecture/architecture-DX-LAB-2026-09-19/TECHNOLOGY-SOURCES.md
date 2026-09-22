@@ -27,7 +27,7 @@ Verified on **2026-09-19**. These sources establish that each seed version exist
 | `httpx` | 0.27.0 | [PyPI](https://pypi.org/project/httpx/0.27.0/) |
 | Qdrant | 1.19.1 | [Qdrant releases](https://github.com/qdrant/qdrant/releases) |
 | OpenRouter API | External HTTPS service | [OpenRouter API reference](https://openrouter.ai/docs/api/reference/overview) |
-| Qwen3-8B | `qwen/qwen3-8b`, Apache-2.0 | [Model card](https://huggingface.co/Qwen/Qwen3-8B) |
+| Qwen3.8-27B | `qwen/qwen3.8-27b:free`, Apache-2.0 | [Model card](https://huggingface.co/Qwen/Qwen3.8-27B) |
 | Caddy | 2.11.4 | [Caddy releases](https://github.com/caddyserver/caddy/releases) |
 | Mailpit | 1.31.1 | [Mailpit releases](https://github.com/axllent/mailpit/releases) |
 

@@ -61,7 +61,7 @@ docs/                        # Kiến trúc, API và triển khai
 | **`demo`** | `core` + `caddy`, `keycloak`, `odoo`, `node-red`, `superset`, `mailpit` | 4 cores | 8 GB | 20 GB | Trình diễn luồng H→P→D qua Caddy ingress |
 | **`ai`** | `core` + `qdrant`, `haystack-rag`; OpenRouter bên ngoài | 4 cores | 4 GB | 15 GB | Pipeline RAG dùng suy luận hosted qua HTTPS |
 
-Trước khi chạy `ai`, đặt `OPENROUTER_API_KEY` trong `.env` đã bị Git ignore. Model sinh được cố định trong backend là `qwen/qwen3-8b`; không đưa khóa vào browser hoặc source. Dùng `AI_PROVIDER=fixture` để phát triển và chạy test hoàn toàn offline.
+Trước khi chạy `ai`, đặt `OPENROUTER_API_KEY` trong `.env` đã bị Git ignore. Model sinh được cố định trong backend là `qwen/qwen3.8-27b:free` (gửi chính sách `data_collection: deny`, che PII; lưu ý model free không bắt buộc ZDR); không đưa khóa vào browser hoặc source. Dùng `AI_PROVIDER=fixture` để phát triển và chạy test hoàn toàn offline.
 
 ## Hướng dẫn Quick Start (Profile `core` không cần AI)
 

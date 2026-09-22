@@ -19,7 +19,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 OPENROUTER_DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
-OPENROUTER_MODEL = "qwen/qwen3-8b"
+OPENROUTER_MODEL = "qwen/qwen3.8-27b:free"
 PROMPT_VERSION = "rag-answer-v1"
 RETRIEVAL_VERSION = "fixture-retrieval-v1"
 MAX_QUERY_CHARS = 4_000
@@ -136,7 +136,6 @@ class DxLabRAGPipeline:
             "max_tokens": MAX_OUTPUT_TOKENS,
             "provider": {
                 "data_collection": "deny",
-                "zdr": True,
                 "require_parameters": True,
             },
         }
@@ -170,7 +169,7 @@ class DxLabRAGPipeline:
             request_id = response.headers.get("x-request-id") or body.get("id")
             if not isinstance(answer, str) or not answer.strip():
                 raise TypeError("missing answer")
-            if actual_model != OPENROUTER_MODEL:
+            if actual_model not in (OPENROUTER_MODEL, OPENROUTER_MODEL.removesuffix(":free")):
                 raise TypeError("unexpected model")
             if not isinstance(request_id, str) or not request_id.strip():
                 raise TypeError("missing request id")

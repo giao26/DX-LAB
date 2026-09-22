@@ -15,7 +15,7 @@ Dự án **DX-LAB (DX-OS)** tuân thủ nghiêm ngặt nguyên tắc **không nh
 | **Qdrant** | v1.11+ | Apache-2.0 | Tầng I: Cơ sở dữ liệu Vector lưu trữ vector embeddings | [qdrant.tech](https://qdrant.tech/) |
 | **Haystack AI** | 2.x | Apache-2.0 | Tầng I: Framework xây dựng RAG pipelines và AI agent | [haystack.deepset.ai](https://haystack.deepset.ai/) |
 | **OpenRouter** | Hosted service | Proprietary service terms | Tầng I: API suy luận tương thích OpenAI qua HTTPS; không được bundle trong repository | [openrouter.ai](https://openrouter.ai/) |
-| **Qwen3-8B** | `qwen/qwen3-8b` | Apache-2.0 | Model sinh được yêu cầu cố định qua OpenRouter | [Qwen/Qwen3-8B](https://huggingface.co/Qwen/Qwen3-8B) |
+| **Qwen3.8-27B** | `qwen/qwen3.8-27b:free` | Apache-2.0 | Model sinh miễn phí được yêu cầu cố định qua OpenRouter | [Qwen/Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B) |
 
 ---
 

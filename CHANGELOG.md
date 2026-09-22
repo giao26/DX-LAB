@@ -6,7 +6,7 @@ Mọi thay đổi quan trọng của dự án **DX-LAB (DX-OS)** sẽ được g
 ## [Unreleased]
 
 ### Đã thay đổi (Changed)
-- Thay runtime Ollama bằng adapter OpenRouter bất đồng bộ dùng model cố định `qwen/qwen3-8b`, chính sách ZDR/data-collection deny và fixture offline cho CI.
+- Thay runtime Ollama bằng adapter OpenRouter bất đồng bộ dùng model miễn phí cố định `qwen/qwen3.8-27b:free`, chính sách data-collection deny, hỗ trợ phản hồi bỏ hậu tố `:free` và fixture offline cho CI.
 - Giảm chuẩn tài nguyên profile `ai` vì không còn tải hoặc chạy mô hình ngôn ngữ cục bộ.
 
 ### Kế hoạch phát triển (Planned)

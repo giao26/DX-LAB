@@ -118,8 +118,8 @@ class ArchitectureChecker:
                 file_path = Path(root) / file
                 rel_path = file_path.relative_to(self.root_dir)
 
-                # Exclude .env.example or test files with safe demo tokens
-                if file == '.env.example' or file.endswith('.example') or file.endswith('.md'):
+                # Exclude git-ignored local environment files (.env, .env.local), .env.example, or documentation
+                if file in ('.env', '.env.local') or file == '.env.example' or file.endswith('.example') or file.endswith('.md'):
                     continue
 
                 try:
@@ -576,14 +576,14 @@ class ArchitectureChecker:
         if key_line != 'OPENROUTER_API_KEY=':
             self.log_error('OPENROUTER_SECRET_LEAK', '.env.example must keep OPENROUTER_API_KEY empty')
 
-        if 'OPENROUTER_MODEL = "qwen/qwen3-8b"' not in pipeline:
-            self.log_error('UNPINNED_AI_MODEL', 'generation model must be the fixed qwen/qwen3-8b slug')
+        if 'OPENROUTER_MODEL = "qwen/qwen3.8-27b:free"' not in pipeline:
+            self.log_error('UNPINNED_AI_MODEL', 'generation model must be the fixed qwen/qwen3.8-27b:free slug')
         forbidden_model_tokens = ['openrouter/auto', ':latest', '/latest']
         for token in forbidden_model_tokens:
             if token in compose.lower() or token in pipeline.lower():
                 self.log_error('DYNAMIC_AI_MODEL', f'forbidden dynamic model selector found: {token}')
-        if '"zdr": True' not in pipeline or '"data_collection": "deny"' not in pipeline or '"require_parameters": True' not in pipeline:
-            self.log_error('MISSING_PROVIDER_PRIVACY', 'OpenRouter request must enforce ZDR, deny data collection, and require parameters')
+        if '"data_collection": "deny"' not in pipeline or '"require_parameters": True' not in pipeline:
+            self.log_error('MISSING_PROVIDER_PRIVACY', 'OpenRouter request must deny data collection and require parameters')
 
         compose_proc = subprocess.run(
             ['docker', 'compose', '--env-file', '.env.example', '--profile', 'ai', 'config', '--format', 'json'],

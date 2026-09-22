@@ -62,11 +62,10 @@ def test_openrouter_success_uses_fixed_private_payload(monkeypatch):
 
     assert result["answer"] == "Câu trả lời"
     assert captured["request"].url.path.endswith("/api/v1/chat/completions")
-    assert captured["payload"]["model"] == "qwen/qwen3-8b"
+    assert captured["payload"]["model"] == "qwen/qwen3.8-27b:free"
     assert captured["payload"]["max_tokens"] == MAX_OUTPUT_TOKENS
     assert captured["payload"]["provider"] == {
         "data_collection": "deny",
-        "zdr": True,
         "require_parameters": True,
     }
     serialized = json.dumps(captured["payload"])
@@ -216,3 +215,23 @@ def test_pii_is_redacted_before_length_limit(monkeypatch):
     sent = captured["payload"]["messages"][1]["content"]
     assert "secret@example.com" not in sent
     assert "secret" not in sent
+
+
+def test_openrouter_accepts_stripped_free_suffix_model(monkeypatch):
+    configure_openrouter(monkeypatch)
+
+    async def handler(request):
+        return httpx.Response(
+            200,
+            headers={"x-request-id": "req-free-1"},
+            json={
+                "model": OPENROUTER_MODEL.removesuffix(":free"),
+                "choices": [{"message": {"content": "free tier response"}}],
+            },
+        )
+
+    pipeline = DxLabRAGPipeline(httpx.MockTransport(handler))
+    result = run(pipeline.run_query("câu hỏi"))
+    assert result["answer"] == "free tier response"
+    assert pipeline.last_request_metadata["actual_model"] == OPENROUTER_MODEL.removesuffix(":free")
+

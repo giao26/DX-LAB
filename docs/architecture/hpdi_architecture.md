@@ -62,7 +62,7 @@ PostgreSQL có cơ sở dữ liệu và tài khoản tối thiểu riêng cho P,
 
 ### I — Trí tuệ hỗ trợ quyết định
 
-Haystack điều phối phân loại và phân tích bằng Qdrant cùng OpenRouter. I chỉ nhận dữ liệu đã giảm thiểu hoặc che thông tin theo mục đích. Request bật ZDR, từ chối thu thập dữ liệu và dùng model cố định `qwen/qwen3-8b`. I trả đề xuất có kiểu dữ liệu và bằng chứng; không được đổi ticket, gửi thông báo, phê duyệt hay xuất bản SOP.
+Haystack điều phối phân loại và phân tích bằng Qdrant cùng OpenRouter. I chỉ nhận dữ liệu đã giảm thiểu hoặc che thông tin theo mục đích. Request từ chối thu thập dữ liệu và dùng model cố định `qwen/qwen3.8-27b:free`. I trả đề xuất có kiểu dữ liệu và bằng chứng; không được đổi ticket, gửi thông báo, phê duyệt hay xuất bản SOP.
 
 P quản lý trạng thái công việc AI gồm `QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`, `EXPIRED` và `SUPERSEDED`. Nhân viên xác nhận phân loại trước khi thay đổi có hiệu lực; giám đốc quyết định có áp dụng khuyến nghị hay không.
 

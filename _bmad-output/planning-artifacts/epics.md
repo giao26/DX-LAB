@@ -261,7 +261,7 @@ tôi muốn **dựng hệ thống từ mã nguồn bằng các profile có phạ
 
 **Cho trước** người duy trì bật thêm profile `ai`
 **Khi** cấu hình model hợp lệ
-**Thì** Haystack và Qdrant được khởi động, còn OpenRouter dùng model slug cố định `qwen/qwen3-8b` với chính sách riêng tư đã cấu hình
+**Thì** Haystack và Qdrant được khởi động, còn OpenRouter dùng model slug cố định `qwen/qwen3.8-27b:free` với chính sách riêng tư đã cấu hình
 **Và** core behavior vẫn có thể kiểm thử bằng fixture hoặc fake nếu profile `ai` không chạy.
 
 **Cho trước** môi trường `dev`, `test` tạm thời và `demo`
