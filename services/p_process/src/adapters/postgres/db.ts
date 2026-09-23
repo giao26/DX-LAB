@@ -21,6 +21,7 @@ export interface DatabaseConfig {
 
 export function createDatabasePool(config?: DatabaseConfig): pg.Pool {
   return new Pool({
+    connectionString: config ? undefined : process.env.DATABASE_URL,
     host: config?.host || process.env.POSTGRES_HOST || 'localhost',
     port: config?.port || Number(process.env.POSTGRES_PORT) || 5432,
     user: config?.user || process.env.POSTGRES_USER || 'dxlab_admin',

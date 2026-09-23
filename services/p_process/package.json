@@ -10,7 +10,8 @@
     "start": "node dist/index.js",
     "dev": "tsc && node dist/index.js",
     "pretest": "tsc",
-    "test": "node --test",
+    "test": "node --test test/*.test.js",
+    "test:integration": "node test/ticket-integration.mjs",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

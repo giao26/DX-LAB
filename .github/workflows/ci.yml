@@ -20,6 +20,15 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            services/p_process/package-lock.json
+            apps/web/package-lock.json
+
       - name: Check Environment Template
         run: |
           cp .env.example .env
@@ -33,6 +42,33 @@ jobs:
       - name: Run Architecture Conformance Tests
         run: |
           python scripts/test-architecture.py
+
+      - name: Test Process Core
+        run: |
+          npm ci --prefix services/p_process
+          npm test --prefix services/p_process
+
+      - name: Test Ticket Integration with PostgreSQL
+        run: |
+          docker compose --profile core up -d --build postgres p-process
+          for i in $(seq 1 30); do
+            docker exec dxlab-p-process node -e "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" && break
+            sleep 1
+          done
+          docker exec dxlab-postgres createdb -U dxlab_admin dxlab_upgrade_test
+          docker exec -i dxlab-postgres psql -v ON_ERROR_STOP=1 -U dxlab_admin -d dxlab_upgrade_test < services/p_process/src/adapters/postgres/migrations/0001_initial_technical_schema.sql
+          docker exec -i dxlab-postgres psql -v ON_ERROR_STOP=1 -U dxlab_admin -d dxlab_upgrade_test < services/p_process/src/adapters/postgres/migrations/0002_ticket_intake.sql
+          docker exec -i dxlab-postgres psql -v ON_ERROR_STOP=1 -U dxlab_admin -d dxlab_upgrade_test < services/p_process/src/adapters/postgres/migrations/0003_expand_ticket_status.sql
+          test "$(docker exec dxlab-postgres psql -U dxlab_admin -d dxlab_upgrade_test -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='dx_core' AND table_name IN ('customers','tickets')")" = "2"
+          docker cp services/p_process/test/ticket-integration.mjs dxlab-p-process:/app/ticket-integration.mjs
+          docker exec dxlab-p-process node /app/ticket-integration.mjs
+
+      - name: Test and Build Web BFF
+        run: |
+          npm ci --prefix apps/web
+          npm test --prefix apps/web
+          npm run test:e2e --prefix apps/web
+          npm run build --prefix apps/web
 
       - name: Run Intelligence Provider Unit Tests (Offline)
         env:

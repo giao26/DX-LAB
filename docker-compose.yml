@@ -35,6 +35,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./services/d_data/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
     networks:
       - data-net
 
@@ -52,15 +57,35 @@ services:
       - demo
       - ai
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     environment:
       PORT: 3000
       HOST: 0.0.0.0
       NODE_ENV: ${NODE_ENV:-development}
       DATABASE_URL: postgresql://${POSTGRES_USER:-dxlab_admin}:${POSTGRES_PASSWORD:-dxlab_postgres_password_2026}@postgres:5432/${POSTGRES_DB:-dxlab_db}
+      MIGRATIONS_DIR: /app/migrations
     networks:
       - app-net
       - data-net
+
+  # ----------------------------------------------------------------------------
+  # TẦNG WEB: DX-PORTAL / BIỂU MẪU VÀ BFF (Next.js)
+  # ----------------------------------------------------------------------------
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: dxlab-web
+    restart: unless-stopped
+    profiles:
+      - demo
+    depends_on:
+      - p-process
+    environment:
+      P_PROCESS_BASE_URL: http://p-process:3000
+    networks:
+      - app-net
 
   # ----------------------------------------------------------------------------
   # CỔNG VÀO CÔNG KHAI DUY NHẤT (Caddy Reverse Proxy - AD-11)
@@ -82,6 +107,7 @@ services:
       - public-net
       - app-net
     depends_on:
+      - web
       - p-process
       - odoo
       - keycloak

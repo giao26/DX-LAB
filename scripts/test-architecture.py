@@ -249,7 +249,7 @@ class ArchitectureChecker:
         self.log_pass("Fastify TypeScript hexagonal core structure validated")
 
     def check_initial_migration(self):
-        """Verifies initial technical migration in p_process and 01_init_schema.sql contain only dx_core metadata tables and NO business tables."""
+        """Verifies the immutable technical baseline and Story 1.3 additive ticket schema."""
         migrations_dir = self.root_dir / 'services' / 'p_process' / 'src' / 'adapters' / 'postgres' / 'migrations'
         init_schema_file = self.root_dir / 'services' / 'd_data' / 'postgres' / 'init' / '01_init_schema.sql'
 
@@ -257,17 +257,22 @@ class ArchitectureChecker:
             self.log_error("MISSING_DIRECTORY", "Migrations directory services/p_process/src/adapters/postgres/migrations does not exist")
             return
 
-        sql_files = list(migrations_dir.glob('*.sql'))
-        if not sql_files:
-            self.log_error("MISSING_MIGRATION", "No SQL migration files found in postgres/migrations")
+        initial_file = migrations_dir / '0001_initial_technical_schema.sql'
+        ticket_file = migrations_dir / '0002_ticket_intake.sql'
+        lifecycle_file = migrations_dir / '0003_expand_ticket_status.sql'
+        if not initial_file.exists() or not ticket_file.exists() or not lifecycle_file.exists():
+            self.log_error("MISSING_MIGRATION", "Expected migrations 0001 technical baseline, 0002 ticket intake and 0003 lifecycle status")
             return
 
         # Check services/d_data/postgres/init/01_init_schema.sql parity
         if not init_schema_file.exists():
             self.log_error("MISSING_FILE", "services/d_data/postgres/init/01_init_schema.sql does not exist")
-        else:
-            sql_files.append(init_schema_file)
+            return
 
+        initial_content = initial_file.read_text(encoding='utf-8')
+        ticket_content = ticket_file.read_text(encoding='utf-8')
+        lifecycle_content = lifecycle_file.read_text(encoding='utf-8')
+        init_content = init_schema_file.read_text(encoding='utf-8')
         required_tables = ['audit_logs', 'outbox_events', 'idempotency_keys']
         forbidden_table_patterns = [
             r'CREATE\s+TABLE[^(]+(?:\.|\s)tickets\b',
@@ -276,26 +281,23 @@ class ArchitectureChecker:
             r'CREATE\s+TABLE[^(]+(?:\.|\s)sops\b',
         ]
 
-        for sf in sql_files:
-            with open(sf, 'r', encoding='utf-8') as f:
-                content = f.read()
+        for table in required_tables:
+            if table not in initial_content or table not in init_content:
+                self.log_error("MISSING_TECHNICAL_TABLE", f"Technical table {table} missing from 0001 or clean-install schema")
+        for pattern in forbidden_table_patterns:
+            if re.search(pattern, initial_content, re.IGNORECASE):
+                self.log_error("PREMATURE_BUSINESS_TABLE", "0001 must remain the Story 1.1 technical-only baseline")
 
-            rel = sf.relative_to(self.root_dir)
-            if 'dx_core' not in content:
-                self.log_error("MISSING_SCHEMA", f"{rel} missing schema 'dx_core'")
+        for table in ['customers', 'tickets']:
+            if table not in ticket_content or table not in init_content:
+                self.log_error("MISSING_BUSINESS_TABLE", f"Story 1.3 table {table} missing from 0002 or clean-install schema")
+        if 'ticket_code_seq' not in ticket_content or 'phone_normalized' not in ticket_content:
+            self.log_error("MISSING_TICKET_INVARIANT", "0002 must define server ticket sequence and normalized-phone uniqueness")
+        for status in ['WAITING', 'IN_PROGRESS', 'CLOSED']:
+            if status not in lifecycle_content or status not in init_content:
+                self.log_error("MISSING_TICKET_LIFECYCLE", f"Ticket status {status} missing from migration 0003 or clean-install schema")
 
-            for rt in required_tables:
-                if rt not in content:
-                    self.log_error("MISSING_TECHNICAL_TABLE", f"{rel} missing required table: {rt}")
-
-            for ftp in forbidden_table_patterns:
-                if re.search(ftp, content, re.IGNORECASE):
-                    self.log_error(
-                        "PREMATURE_BUSINESS_TABLE",
-                        f"{rel} contains forbidden business table matching '{ftp}' (Story 1.1 AC 2 violation)"
-                    )
-
-        self.log_pass("Initial technical migration and 01_init_schema.sql parity (dx_core: audit_logs, outbox_events, idempotency_keys) validated")
+        self.log_pass("Technical baseline and additive Story 1.3 ticket migrations validated")
 
     def check_contracts(self):
         """Verifies contracts directory, OpenAPI 3.1 YAML spec, and JSON Schemas."""
@@ -366,12 +368,14 @@ class ArchitectureChecker:
                             if req_prop not in properties:
                                 self.log_error("INVALID_SCHEMA", f"{sf.name} required property '{req_prop}' not defined in properties")
 
-                        # Specific check for ticket-created.v1
+                        # Specific check for ticket-created.v1: internal event carries identifiers only.
                         if sf.name == 'ticket-created.v1.schema.json':
-                            if 'customer_phone' not in properties:
-                                self.log_error("MISSING_FIELD", "ticket-created.v1.schema.json missing customer_phone (FR-4 deduplication)")
-                            if 'description' not in properties:
-                                self.log_error("MISSING_FIELD", "ticket-created.v1.schema.json missing description")
+                            for required_field in ['ticket_id', 'ticket_code', 'customer_id', 'provisional_type', 'created_at']:
+                                if required_field not in properties:
+                                    self.log_error("MISSING_FIELD", f"ticket-created.v1.schema.json missing {required_field}")
+                            for pii_field in ['customer_name', 'customer_phone', 'customer_email', 'description']:
+                                if pii_field in properties:
+                                    self.log_error("EVENT_PII_LEAK", f"ticket-created.v1.schema.json must not expose {pii_field}")
 
                     except json.JSONDecodeError as e:
                         self.log_error("INVALID_JSON_SCHEMA", f"Invalid JSON in {sf.name}: {e}")
@@ -463,7 +467,7 @@ class ArchitectureChecker:
 
         # 1. Check required services existence
         required_services = [
-            'postgres', 'p-process', 'caddy', 'keycloak',
+            'postgres', 'p-process', 'web', 'caddy', 'keycloak',
             'odoo', 'node-red', 'superset', 'mailpit',
             'qdrant', 'haystack-rag'
         ]
@@ -485,7 +489,7 @@ class ArchitectureChecker:
             self.log_error("INVALID_PROFILE", "Service 'postgres' must have 'core' profile")
 
         # Profile demo MUST include Caddy, Keycloak, Odoo, Node-RED, Superset
-        demo_services = ['caddy', 'keycloak', 'odoo', 'node-red', 'superset', 'mailpit']
+        demo_services = ['web', 'caddy', 'keycloak', 'odoo', 'node-red', 'superset', 'mailpit']
         for ds in demo_services:
             if ds in services and 'demo' not in services[ds]['profiles']:
                 self.log_error("INVALID_PROFILE", f"Service '{ds}' must belong to profile 'demo'")
@@ -546,6 +550,13 @@ class ArchitectureChecker:
             ctx = services['p-process'].get('build_context', '')
             if './services/p_process' not in ctx:
                 self.log_error("INVALID_COMPOSE", "p-process service must point to ./services/p_process")
+
+        if 'web' in services:
+            ctx = services['web'].get('build_context', '')
+            if './apps/web' not in ctx:
+                self.log_error("INVALID_COMPOSE", "web service must point to ./apps/web")
+            if services['web']['ports']:
+                self.log_error("PUBLIC_PORT_LEAK", "web must only be reachable through Caddy")
 
         self.log_pass("docker-compose.yml profiles, single ingress (AD-11), network segregation, and image pins validated")
 

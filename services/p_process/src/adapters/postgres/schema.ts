@@ -5,7 +5,7 @@
  * License: AGPL-3.0
  */
 
-import { pgSchema, uuid, varchar, integer, timestamp, jsonb, text, index } from 'drizzle-orm/pg-core';
+import { pgSchema, uuid, varchar, integer, timestamp, jsonb, text, index, boolean } from 'drizzle-orm/pg-core';
 
 export const dxCoreSchema = pgSchema('dx_core');
 
@@ -68,4 +68,30 @@ export const idempotencyKeys = dxCoreSchema.table('idempotency_keys', {
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull()
 }, (table) => [
   index('idx_idempotency_keys_expires_at').on(table.expiresAt)
+]);
+
+export const customers = dxCoreSchema.table('customers', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  phoneNormalized: varchar('phone_normalized', { length: 20 }).notNull().unique(),
+  fullName: varchar('full_name', { length: 120 }).notNull(),
+  email: varchar('email', { length: 254 }).notNull(),
+  contactReviewRequired: boolean('contact_review_required').default(false).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+export const tickets = dxCoreSchema.table('tickets', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  code: varchar('code', { length: 32 }).notNull().unique(),
+  customerId: uuid('customer_id').notNull().references(() => customers.id),
+  description: text('description').notNull(),
+  status: varchar('status', { length: 20 }).default('WAITING').notNull(),
+  provisionalType: varchar('provisional_type', { length: 30 }).notNull(),
+  contactReviewRequired: boolean('contact_review_required').default(false).notNull(),
+  receivedAt: timestamp('received_at', { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+}, (table) => [
+  index('idx_tickets_customer').on(table.customerId),
+  index('idx_tickets_status_received').on(table.status, table.receivedAt)
 ]);

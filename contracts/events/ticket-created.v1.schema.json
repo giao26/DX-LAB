@@ -7,12 +7,9 @@
   "required": [
     "ticket_id",
     "ticket_code",
-    "title",
-    "description",
+    "customer_id",
     "provisional_type",
-    "customer_email",
-    "customer_phone",
-    "customer_name",
+    "contact_review_required",
     "created_at"
   ],
   "properties": {
@@ -24,26 +21,16 @@
       "type": "string",
       "pattern": "^TCK-[0-9]{4}-[0-9]+$"
     },
-    "title": {
+    "customer_id": {
       "type": "string",
-      "minLength": 1
-    },
-    "description": {
-      "type": "string",
-      "minLength": 1
+      "format": "uuid"
     },
     "provisional_type": {
-      "type": "string"
-    },
-    "customer_email": {
       "type": "string",
-      "format": "email"
+      "enum": ["Khiếu nại", "Tư vấn", "Bảo hành"]
     },
-    "customer_phone": {
-      "type": "string"
-    },
-    "customer_name": {
-      "type": "string"
+    "contact_review_required": {
+      "type": "boolean"
     },
     "created_at": {
       "type": "string",

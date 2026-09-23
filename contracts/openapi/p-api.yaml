@@ -46,6 +46,16 @@ paths:
             schema:
               $ref: '#/components/schemas/TicketCreateRequest'
       responses:
+        '200':
+          description: Phản hồi được phát lại từ một yêu cầu đã xử lý với cùng Idempotency-Key và payload
+          headers:
+            Idempotency-Replayed:
+              schema:
+                type: boolean
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
         '201':
           description: Tiếp nhận thành công
           content:
@@ -59,7 +69,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
         '409':
-          description: Xung đột dữ liệu hoặc vi phạm bất biến nghiệp vụ
+          description: Idempotency-Key đã được dùng với payload khác
           content:
             application/problem+json:
               schema:
@@ -158,6 +168,7 @@ components:
 
     ProblemDetails:
       type: object
+      additionalProperties: false
       required:
         - type
         - title
@@ -180,45 +191,60 @@ components:
         instance:
           type: string
           example: /api/v1/tickets
+        code:
+          type: string
+          example: validation_failed
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
 
     TicketCreateRequest:
       type: object
+      additionalProperties: false
       required:
-        - title
-        - description
-        - customerEmail
-        - customerPhone
         - customerName
+        - customerPhone
+        - customerEmail
+        - provisionalType
+        - description
       properties:
-        title:
-          type: string
-          minLength: 5
-          maxLength: 255
-        description:
-          type: string
-          minLength: 10
-        customerEmail:
-          type: string
-          format: email
-        customerPhone:
-          type: string
-          description: Số điện thoại người gửi phục vụ khử trùng và liên hệ
         customerName:
           type: string
           minLength: 2
+          maxLength: 120
+        customerPhone:
+          type: string
+          minLength: 9
+          maxLength: 24
+        customerEmail:
+          type: string
+          format: email
         provisionalType:
           type: string
+          enum: [Khiếu nại, Tư vấn, Bảo hành]
+        description:
+          type: string
+          minLength: 10
+          maxLength: 4000
 
     Ticket:
       type: object
+      additionalProperties: false
       required:
         - id
         - code
-        - title
         - description
         - status
+        - customerId
+        - provisionalType
         - customerEmail
+        - customerPhone
         - customerName
+        - contactReviewRequired
+        - receivedAt
         - createdAt
         - updatedAt
       properties:
@@ -228,8 +254,6 @@ components:
         code:
           type: string
           example: TCK-2026-0001
-        title:
-          type: string
         description:
           type: string
         status:
@@ -237,6 +261,10 @@ components:
           enum: [WAITING, IN_PROGRESS, CLOSED]
         provisionalType:
           type: string
+          enum: [Khiếu nại, Tư vấn, Bảo hành]
+        customerId:
+          type: string
+          format: uuid
         confirmedType:
           type: string
         assignedStaffId:
@@ -248,6 +276,11 @@ components:
           type: string
         customerName:
           type: string
+        contactReviewRequired:
+          type: boolean
+        receivedAt:
+          type: string
+          format: date-time
         createdAt:
           type: string
           format: date-time

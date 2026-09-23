@@ -38,6 +38,11 @@ ENV/
 
 # Node.js
 node_modules/
+.next/
+test-results/
+playwright-report/
+coverage/
+*.tsbuildinfo
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
