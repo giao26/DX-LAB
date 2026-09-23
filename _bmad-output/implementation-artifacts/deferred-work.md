@@ -13,3 +13,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-thay-ollama-bang-openrouter.md`
   summary: Quyết định retry/backoff và kiểm soát chi phí cho inference OpenRouter trong luồng P/outbox.
   evidence: Kiến trúc yêu cầu retry dependency có giới hạn, nhưng chưa định nghĩa số lần, điều kiện retry hoặc idempotency cho lời gọi inference trả phí; tự retry trong adapter có thể tăng chi phí hoặc tạo kết quả trùng.
+- source_spec: `_bmad-output/implementation-artifacts/spec-hoan-tat-moi-truong-ai-haystack.md`
+  summary: Ghi lệnh unit test Haystack đầy đủ trong hồ sơ hoàn tất để người bảo trì có thể tái hiện kết quả `35 passed`.
+  evidence: Blind review xác nhận Implementation Notes ghi kết quả unit test nhưng chưa ghi nguyên lệnh `uv run --no-cache --locked --extra test pytest -q`; đây là thiếu sót tài liệu mức thấp và việc sửa spec được workflow định tuyến sang deferred work.
