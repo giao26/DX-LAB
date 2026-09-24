@@ -8,9 +8,11 @@ import Fastify, { FastifyError, FastifyInstance, FastifyServerOptions } from 'fa
 import { healthRoutes } from './routes/health.js';
 import { ticketRoutes } from './routes/tickets.js';
 import type { CreateTicketUseCase } from '../../application/create-ticket.js';
+import type { TicketRecord } from '../../domain/ticket.js';
 
 export interface AppDependencies {
   createTicket?: CreateTicketUseCase;
+  getTicketById?: (id: string) => Promise<TicketRecord | null>;
 }
 
 export function buildApp(opts: FastifyServerOptions = {}, dependencies: AppDependencies = {}): FastifyInstance {
@@ -38,7 +40,10 @@ export function buildApp(opts: FastifyServerOptions = {}, dependencies: AppDepen
   // Register routes
   app.register(healthRoutes);
   if (dependencies.createTicket) {
-    app.register(ticketRoutes, { createTicket: dependencies.createTicket });
+    app.register(ticketRoutes, {
+      createTicket: dependencies.createTicket,
+      getTicketById: dependencies.getTicketById,
+    });
   }
 
   // RFC 9457 Problem Details error handler

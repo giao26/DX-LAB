@@ -14,8 +14,9 @@ export interface TicketRecord extends TicketCreateInput {
   id: string;
   code: string;
   customerId: string;
-  status: 'WAITING';
+  status: 'WAITING' | 'IN_PROGRESS' | 'CLOSED';
   contactReviewRequired: boolean;
+  confirmationEmailStatus?: 'PENDING' | 'SENT' | 'FAILED' | 'DEAD_LETTER';
   receivedAt: string;
   createdAt: string;
   updatedAt: string;

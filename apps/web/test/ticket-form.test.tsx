@@ -41,7 +41,12 @@ describe('TicketForm', () => {
   it('focus xác nhận và hiện mã ticket khi thành công', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ code: 'TCK-2026-000001', status: 'WAITING', receivedAt: '2026-09-23T00:00:00Z' }),
+      json: async () => ({
+        code: 'TCK-2026-000001',
+        status: 'WAITING',
+        confirmationEmailStatus: 'PENDING',
+        receivedAt: '2026-09-23T00:00:00Z',
+      }),
     }));
     render(<TicketForm />);
     fillValidForm();
@@ -49,5 +54,68 @@ describe('TicketForm', () => {
     const status = await screen.findByRole('status');
     await waitFor(() => expect(status).toHaveFocus());
     expect(screen.getByText('TCK-2026-000001')).toBeInTheDocument();
+    expect(screen.getByText(/Đang gửi email xác nhận/)).toBeInTheDocument();
+  });
+
+  it('hiển thị văn bản trạng thái khi email đã được gửi thành công', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        code: 'TCK-2026-000002',
+        status: 'WAITING',
+        confirmationEmailStatus: 'SENT',
+        receivedAt: '2026-09-23T00:00:00Z',
+      }),
+    }));
+    render(<TicketForm />);
+    fillValidForm();
+    fireEvent.click(screen.getByRole('button', { name: 'Gửi yêu cầu' }));
+    const status = await screen.findByRole('status');
+    await waitFor(() => expect(status).toHaveFocus());
+    expect(screen.getByText('TCK-2026-000002')).toBeInTheDocument();
+    expect(screen.getByText('Trạng thái email: Đã gửi email xác nhận')).toBeInTheDocument();
+  });
+
+  it('chuyển trạng thái email từ PENDING sang SENT khi thăm dò thành công', async () => {
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      if (url === '/bff/tickets') {
+        return {
+          ok: true,
+          json: async () => ({
+            id: 'uuid-1',
+            code: 'TCK-2026-000003',
+            status: 'WAITING',
+            confirmationEmailStatus: 'PENDING',
+            receivedAt: '2026-09-23T00:00:00Z',
+          }),
+        };
+      }
+      if (url === '/bff/tickets/uuid-1') {
+        return {
+          ok: true,
+          json: async () => ({
+            id: 'uuid-1',
+            code: 'TCK-2026-000003',
+            status: 'WAITING',
+            confirmationEmailStatus: 'SENT',
+          }),
+        };
+      }
+      throw new Error(`Unexpected url ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<TicketForm />);
+    fillValidForm();
+    fireEvent.click(screen.getByRole('button', { name: 'Gửi yêu cầu' }));
+
+    const status = await screen.findByRole('status');
+    await waitFor(() => expect(status).toHaveFocus());
+    expect(screen.getByText('TCK-2026-000003')).toBeInTheDocument();
+    expect(screen.getByText(/Đang gửi email xác nhận/)).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByText('Trạng thái email: Đã gửi email xác nhận')).toBeInTheDocument();
+    }, { timeout: 4000 });
   });
 });

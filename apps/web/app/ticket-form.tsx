@@ -1,10 +1,16 @@
 'use client';
 
-import { FormEvent, useRef, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 
 type Field = 'customerName' | 'customerPhone' | 'customerEmail' | 'provisionalType' | 'description';
 type Errors = Partial<Record<Field | 'body', string[]>>;
-type Ticket = { code: string; status: 'WAITING'; receivedAt: string };
+type Ticket = {
+  id?: string;
+  code: string;
+  status: 'WAITING' | string;
+  receivedAt: string;
+  confirmationEmailStatus?: 'PENDING' | 'PROCESSING' | 'SENT' | 'FAILED' | 'DEAD_LETTER';
+};
 
 const initial = { customerName: '', customerPhone: '', customerEmail: '', provisionalType: '', description: '' };
 
@@ -28,12 +34,47 @@ export function TicketForm() {
   const [errors, setErrors] = useState<Errors>({});
   const [pending, setPending] = useState(false);
   const [ticket, setTicket] = useState<Ticket | null>(null);
+  const [emailStatus, setEmailStatus] = useState<'PENDING' | 'PROCESSING' | 'SENT' | 'FAILED' | 'DEAD_LETTER' | null>(null);
   const key = useRef<string>(crypto.randomUUID());
   const errorSummary = useRef<HTMLDivElement>(null);
   const successSummary = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    if (!ticket?.id) return;
+    if (['SENT', 'DEAD_LETTER'].includes(ticket.confirmationEmailStatus ?? '')) return;
+    let cancelled = false;
+    let attempts = 0;
+    const interval = setInterval(async () => {
+      attempts++;
+      if (attempts > 10 || cancelled) {
+        clearInterval(interval);
+        return;
+      }
+      try {
+        const response = await fetch(`/bff/tickets/${ticket.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (!cancelled && data.confirmationEmailStatus) {
+            setEmailStatus(data.confirmationEmailStatus);
+            if (['SENT', 'DEAD_LETTER'].includes(data.confirmationEmailStatus)) {
+              clearInterval(interval);
+            }
+          }
+        }
+      } catch {
+        // Ignore network glitches during polling
+      }
+    }, 1500);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [ticket?.id]);
+
   function update(field: Field, value: string) {
     setTicket(null);
+    setEmailStatus(null);
     setValues((current) => ({ ...current, [field]: value }));
   }
 
@@ -61,6 +102,7 @@ export function TicketForm() {
         return;
       }
       setTicket(body);
+      setEmailStatus(body.confirmationEmailStatus ?? 'PENDING');
       setValues(initial);
       key.current = crypto.randomUUID();
       requestAnimationFrame(() => successSummary.current?.focus());
@@ -90,6 +132,12 @@ export function TicketForm() {
         <h2>Đã tiếp nhận yêu cầu</h2>
         <p>Mã ticket: <strong>{ticket.code}</strong></p>
         <p>Trạng thái: Chờ xử lý</p>
+        <p>Trạng thái email: {
+          emailStatus === 'SENT' ? 'Đã gửi email xác nhận' :
+          emailStatus === 'DEAD_LETTER' ? 'Không thể gửi email xác nhận' :
+          emailStatus === 'FAILED' ? 'Chưa thể gửi email xác nhận (hệ thống sẽ thử lại)' :
+          'Đang gửi email xác nhận'
+        }</p>
       </div>}
       <form onSubmit={submit} noValidate>
         {fields.map(({ id, label, type = 'text', autoComplete }) => <div className="field" key={id}>

@@ -5,6 +5,7 @@
  */
 
 import { OutboxEventStatus, IdempotencyRecord, AuditLogRecord } from '../domain/types.js';
+import { NotificationRecord, NotificationStatus } from '../domain/notification.js';
 
 export interface IOutboxPort {
   publishEvent<T>(
@@ -33,4 +34,50 @@ export interface IIdempotencyPort {
     headers: Record<string, unknown>,
     body: unknown
   ): Promise<void>;
+}
+
+export interface INotificationStore {
+  claimPendingNotifications(limit?: number): Promise<NotificationRecord[]>;
+  findByIdempotencyKey(key: string): Promise<NotificationRecord | null>;
+  findByTicketId(ticketId: string): Promise<NotificationRecord | null>;
+  createNotification(
+    input: {
+      idempotencyKey: string;
+      ticketId: string;
+      recipientEmail: string;
+      subject: string;
+      body: string;
+      status?: NotificationStatus;
+    },
+    client?: unknown
+  ): Promise<NotificationRecord>;
+  updateNotificationStatus(
+    id: string,
+    status: NotificationStatus,
+    details: {
+      retryCount: number;
+      lastError?: string | null;
+      providerResponse?: Record<string, unknown> | null;
+      sentAt?: Date | null;
+    }
+  ): Promise<void>;
+}
+
+export interface SendMailOptions {
+  to: string;
+  from?: string;
+  subject: string;
+  text: string;
+  html?: string;
+}
+
+export interface SendMailResult {
+  messageId?: string;
+  accepted?: string[];
+  rejected?: string[];
+  response?: string;
+}
+
+export interface IMailerPort {
+  sendMail(options: SendMailOptions): Promise<SendMailResult>;
 }

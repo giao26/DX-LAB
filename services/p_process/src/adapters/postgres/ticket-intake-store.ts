@@ -6,6 +6,10 @@ import {
   type TicketIntakeStore,
 } from '../../application/create-ticket.js';
 import { contactDetailsConflict, type TicketRecord } from '../../domain/ticket.js';
+import {
+  buildConfirmationEmail,
+  buildConfirmationEmailIdempotencyKey,
+} from '../../domain/notification.js';
 
 type JsonValue = string | Record<string, unknown> | null;
 
@@ -33,6 +37,15 @@ export class PostgresTicketIntakeStore implements TicketIntakeStore {
     if (row.request_hash !== command.requestHash) throw new IdempotencyConflictError();
     const ticket = parseTicket(row.response_body);
     if (!ticket) throw new IdempotencyInProgressError();
+    const notif = await this.pool.query(
+      `SELECT status FROM dx_core.notifications WHERE ticket_id = $1::uuid ORDER BY created_at DESC LIMIT 1`,
+      [ticket.id],
+    );
+    if (notif.rowCount) {
+      ticket.confirmationEmailStatus = notif.rows[0].status;
+    } else if (!ticket.confirmationEmailStatus) {
+      ticket.confirmationEmailStatus = 'PENDING';
+    }
     return { ticket, replayed: true };
   }
 
@@ -128,10 +141,25 @@ export class PostgresTicketIntakeStore implements TicketIntakeStore {
         description: row.description,
         status: row.status,
         contactReviewRequired: row.contact_review_required,
+        confirmationEmailStatus: 'PENDING',
         receivedAt: row.received_at.toISOString(),
         createdAt: row.created_at.toISOString(),
         updatedAt: row.updated_at.toISOString(),
       };
+
+      const email = buildConfirmationEmail({
+        ticketCode: ticket.code,
+        receivedAt: ticket.receivedAt,
+        customerName: ticket.customerName,
+      });
+      const notificationKey = buildConfirmationEmailIdempotencyKey(ticket.id);
+      await client.query(
+        `INSERT INTO dx_core.notifications
+          (idempotency_key, ticket_id, recipient_email, subject, body, status)
+         VALUES ($1, $2, $3, $4, $5, 'PENDING')
+         ON CONFLICT (idempotency_key) DO NOTHING`,
+        [notificationKey, ticket.id, ticket.customerEmail, email.subject, email.body],
+      );
 
       const eventPayload = {
         ticket_id: ticket.id,
@@ -173,5 +201,49 @@ export class PostgresTicketIntakeStore implements TicketIntakeStore {
     } finally {
       client.release();
     }
+  }
+
+  async getTicketById(ticketId: string): Promise<TicketRecord | null> {
+    const result = await this.pool.query(
+      `SELECT
+         t.id,
+         t.code,
+         t.customer_id,
+         c.full_name AS customer_name,
+         c.phone_normalized AS customer_phone,
+         c.email AS customer_email,
+         t.provisional_type,
+         t.description,
+         t.status,
+         t.contact_review_required,
+         t.received_at,
+         t.created_at,
+         t.updated_at,
+         n.status AS confirmation_email_status
+       FROM dx_core.tickets t
+       JOIN dx_core.customers c ON t.customer_id = c.id
+       LEFT JOIN LATERAL (SELECT status FROM dx_core.notifications WHERE ticket_id = t.id ORDER BY created_at DESC LIMIT 1) n ON true
+       WHERE t.id = $1::uuid`,
+      [ticketId],
+    );
+
+    if (!result.rowCount) return null;
+    const row = result.rows[0];
+    return {
+      id: row.id,
+      code: row.code,
+      customerId: row.customer_id,
+      customerName: row.customer_name,
+      customerPhone: row.customer_phone,
+      customerEmail: row.customer_email,
+      provisionalType: row.provisional_type,
+      description: row.description,
+      status: row.status,
+      contactReviewRequired: row.contact_review_required,
+      confirmationEmailStatus: row.confirmation_email_status || 'PENDING',
+      receivedAt: row.received_at.toISOString(),
+      createdAt: row.created_at.toISOString(),
+      updatedAt: row.updated_at.toISOString(),
+    };
   }
 }

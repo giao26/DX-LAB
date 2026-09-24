@@ -20,6 +20,7 @@ export interface TicketIntakeStore {
     idempotencyKey: string;
     requestHash: string;
   }): Promise<TicketIntakeResult>;
+  getTicketById?(id: string): Promise<TicketRecord | null>;
 }
 
 export class IdempotencyConflictError extends Error {
@@ -60,4 +61,12 @@ export class CreateTicketUseCase {
     const input = validateTicketCreateInput(body);
     return this.store.createTicket({ input, idempotencyKey, requestHash });
   }
+
+  async getTicketById(id: string): Promise<TicketRecord | null> {
+    if (this.store.getTicketById) {
+      return this.store.getTicketById(id);
+    }
+    return null;
+  }
 }
+

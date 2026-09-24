@@ -32,7 +32,9 @@ try {
   const replay = await post(firstKey, body);
   assert.equal(replay.status, 200);
   assert.equal(replay.headers.get('idempotency-replayed'), 'true');
-  assert.equal((await replay.json()).id, ticket.id);
+  const replayTicket = await replay.json();
+  assert.equal(replayTicket.id, ticket.id);
+  assert.ok(['PENDING', 'SENT'].includes(replayTicket.confirmationEmailStatus));
   assert.equal((await post(firstKey, { ...body, description: `${body.description} khác` })).status, 409);
   assert.equal((await post(firstKey, { customerEmail: 'sai' })).status, 409);
 
@@ -41,10 +43,20 @@ try {
       (SELECT count(*)::int FROM dx_core.audit_logs WHERE aggregate_id = $1 AND action = 'ticket.created') AS audit_count,
       (SELECT count(*)::int FROM dx_core.outbox_events WHERE aggregate_id = $1 AND event_type = 'ticket.created.v1'
         AND status = 'PENDING' AND payload->>'ticket_id' = $1
-        AND payload ?& ARRAY['ticket_code','customer_id','provisional_type','contact_review_required','created_at']) AS outbox_count`,
+        AND payload ?& ARRAY['ticket_code','customer_id','provisional_type','contact_review_required','created_at']) AS outbox_count,
+      (SELECT count(*)::int FROM dx_core.notifications WHERE ticket_id = $1::uuid
+        AND idempotency_key = 'email:ticket-created:' || $1) AS notification_count`,
     [ticket.id],
   );
-  assert.deepEqual(sideEffects.rows[0], { audit_count: 1, outbox_count: 1 });
+  assert.deepEqual(sideEffects.rows[0], { audit_count: 1, outbox_count: 1, notification_count: 1 });
+
+  // Story 1.4: confirmation email status in ticket and GET /api/v1/tickets/:id
+  assert.ok(['PENDING', 'SENT'].includes(ticket.confirmationEmailStatus));
+  const getRes = await fetch(`${baseUrl}/api/v1/tickets/${ticket.id}`);
+  assert.equal(getRes.status, 200);
+  const fetchedTicket = await getRes.json();
+  assert.equal(fetchedTicket.id, ticket.id);
+  assert.ok(['PENDING', 'SENT'].includes(fetchedTicket.confirmationEmailStatus));
 
   const contact = await post(randomUUID(), {
     ...body, customerName: 'Tên không được ghi đè', customerEmail: `other-${suffix}@example.com`,

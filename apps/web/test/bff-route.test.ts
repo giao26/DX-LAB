@@ -49,3 +49,29 @@ describe('POST /bff/tickets', () => {
     expect(upstream).not.toHaveBeenCalled();
   });
 });
+
+describe('GET /bff/tickets/[id]', () => {
+  it('chuyển tiếp yêu cầu tra cứu ticket tới P và trả trạng thái email', async () => {
+    const { GET } = await import('../app/bff/tickets/[id]/route');
+    const mockTicket = {
+      id: 'a33e617f-9374-4df6-8a91-3caf987f0068',
+      code: 'TCK-2026-000001',
+      status: 'WAITING',
+      confirmationEmailStatus: 'SENT',
+    };
+    const upstream = vi.fn().mockResolvedValue(new Response(JSON.stringify(mockTicket), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+    vi.stubGlobal('fetch', upstream);
+
+    const request = new NextRequest('http://localhost/bff/tickets/a33e617f-9374-4df6-8a91-3caf987f0068');
+    const response = await GET(request, { params: Promise.resolve({ id: 'a33e617f-9374-4df6-8a91-3caf987f0068' }) });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.code).toBe('TCK-2026-000001');
+    expect(data.confirmationEmailStatus).toBe('SENT');
+  });
+});
+

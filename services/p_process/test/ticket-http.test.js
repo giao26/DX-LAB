@@ -19,6 +19,7 @@ function record(input) {
     customerId: '8083057e-29ad-41e7-903f-2ff604d70680',
     status: 'WAITING',
     contactReviewRequired: false,
+    confirmationEmailStatus: 'PENDING',
     receivedAt: '2026-09-23T00:00:00.000Z',
     createdAt: '2026-09-23T00:00:00.000Z',
     updatedAt: '2026-09-23T00:00:00.000Z',
@@ -40,6 +41,7 @@ test('POST tạo ticket hợp lệ và trả mã server', async (t) => {
   assert.equal(captured.input.customerPhone, '0912345678');
   assert.equal(response.json().status, 'WAITING');
   assert.equal(response.json().code, 'TCK-2026-000001');
+  assert.equal(response.json().confirmationEmailStatus, 'PENDING');
 });
 
 test('payload sai trả lỗi theo trường và không gọi kho dữ liệu', async (t) => {
@@ -101,4 +103,53 @@ test('từ chối Idempotency-Key không phải UUID', async (t) => {
   }, payload: valid });
   assert.equal(response.statusCode, 400);
   assert.equal(response.json().code, 'INVALID_IDEMPOTENCY_KEY');
+});
+
+test('GET /api/v1/tickets/:id trả 200 và chi tiết ticket kèm trạng thái email', async (t) => {
+  const mockTicket = record({ ...valid, customerPhone: '0912345678' });
+  mockTicket.confirmationEmailStatus = 'SENT';
+  const store = {
+    async lookupIdempotency() { return null; },
+    async createTicket() { throw new Error('không gọi'); },
+    async getTicketById(id) {
+      if (id === mockTicket.id) return mockTicket;
+      return null;
+    }
+  };
+  const app = buildApp({ logger: false }, { createTicket: new CreateTicketUseCase(store) });
+  t.after(() => app.close());
+
+  const res = await app.inject({ method: 'GET', url: `/api/v1/tickets/${mockTicket.id}` });
+  assert.equal(res.statusCode, 200);
+  const data = res.json();
+  assert.equal(data.id, mockTicket.id);
+  assert.equal(data.code, mockTicket.code);
+  assert.equal(data.confirmationEmailStatus, 'SENT');
+});
+
+test('GET /api/v1/tickets/:id trả 404 khi không tìm thấy ticket', async (t) => {
+  const store = {
+    async lookupIdempotency() { return null; },
+    async createTicket() { throw new Error('không gọi'); },
+    async getTicketById() { return null; }
+  };
+  const app = buildApp({ logger: false }, { createTicket: new CreateTicketUseCase(store) });
+  t.after(() => app.close());
+
+  const res = await app.inject({ method: 'GET', url: '/api/v1/tickets/00000000-0000-4000-8000-000000000000' });
+  assert.equal(res.statusCode, 404);
+  assert.equal(res.json().code, 'TICKET_NOT_FOUND');
+});
+
+test('GET /api/v1/tickets/:id trả 400 khi id không phải UUID', async (t) => {
+  const store = {
+    async lookupIdempotency() { return null; },
+    async createTicket() { throw new Error('không gọi'); }
+  };
+  const app = buildApp({ logger: false }, { createTicket: new CreateTicketUseCase(store) });
+  t.after(() => app.close());
+
+  const res = await app.inject({ method: 'GET', url: '/api/v1/tickets/not-a-valid-uuid' });
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.json().code, 'INVALID_TICKET_ID');
 });

@@ -65,6 +65,8 @@ services:
       NODE_ENV: ${NODE_ENV:-development}
       DATABASE_URL: postgresql://${POSTGRES_USER:-dxlab_admin}:${POSTGRES_PASSWORD:-dxlab_postgres_password_2026}@postgres:5432/${POSTGRES_DB:-dxlab_db}
       MIGRATIONS_DIR: /app/migrations
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${MAILPIT_SMTP_PORT:-1025}
     networks:
       - app-net
       - data-net

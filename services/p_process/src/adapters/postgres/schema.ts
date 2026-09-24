@@ -95,3 +95,24 @@ export const tickets = dxCoreSchema.table('tickets', {
   index('idx_tickets_customer').on(table.customerId),
   index('idx_tickets_status_received').on(table.status, table.receivedAt)
 ]);
+
+export const notifications = dxCoreSchema.table('notifications', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  idempotencyKey: varchar('idempotency_key', { length: 255 }).notNull().unique(),
+  ticketId: uuid('ticket_id').notNull().references(() => tickets.id),
+  recipientEmail: varchar('recipient_email', { length: 254 }).notNull(),
+  subject: varchar('subject', { length: 255 }).notNull(),
+  body: text('body').notNull(),
+  status: varchar('status', { length: 20 }).default('PENDING').notNull(),
+  retryCount: integer('retry_count').default(0).notNull(),
+  maxRetries: integer('max_retries').default(3).notNull(),
+  lastError: text('last_error'),
+  providerResponse: jsonb('provider_response'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  sentAt: timestamp('sent_at', { withTimezone: true })
+}, (table) => [
+  index('idx_notifications_ticket_id').on(table.ticketId),
+  index('idx_notifications_status').on(table.status, table.createdAt)
+]);
+

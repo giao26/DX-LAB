@@ -4,10 +4,11 @@ import {
   IdempotencyConflictError,
   IdempotencyInProgressError,
 } from '../../../application/create-ticket.js';
-import { TicketValidationError } from '../../../domain/ticket.js';
+import { TicketRecord, TicketValidationError } from '../../../domain/ticket.js';
 
 export interface TicketRouteOptions {
   createTicket: CreateTicketUseCase;
+  getTicketById?: (id: string) => Promise<TicketRecord | null>;
 }
 
 function problem(status: number, code: string, title: string, detail: string, instance: string, errors?: unknown) {
@@ -49,5 +50,29 @@ export const ticketRoutes: FastifyPluginAsync<TicketRouteOptions> = async (app, 
       }
       throw error;
     }
+  });
+
+  app.get<{ Params: { ticketId: string } }>('/api/v1/tickets/:ticketId', async (request, reply) => {
+    const { ticketId } = request.params;
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ticketId)) {
+      return reply.status(400).type('application/problem+json').send(problem(
+        400, 'INVALID_TICKET_ID', 'Mã ticket không hợp lệ',
+        'Mã ticket phải là UUID hợp lệ.', request.url,
+      ));
+    }
+
+    const getter = options.getTicketById
+      ? options.getTicketById
+      : (id: string) => options.createTicket.getTicketById(id);
+
+    const ticket = await getter(ticketId);
+    if (!ticket) {
+      return reply.status(404).type('application/problem+json').send(problem(
+        404, 'TICKET_NOT_FOUND', 'Không tìm thấy ticket',
+        `Không tìm thấy ticket với ID: ${ticketId}`, request.url,
+      ));
+    }
+
+    return reply.status(200).send(ticket);
   });
 };
