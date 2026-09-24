@@ -15,4 +15,6 @@ RUN npm install --no-audit --no-update-notifier --only=production
 
 USER node-red
 
+WORKDIR /usr/src/node-red
+
 EXPOSE 1880
