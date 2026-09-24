@@ -59,15 +59,32 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      attachment-volume-init:
+        condition: service_completed_successfully
     environment:
       PORT: 3000
       HOST: 0.0.0.0
       NODE_ENV: ${NODE_ENV:-development}
       DATABASE_URL: postgresql://${POSTGRES_USER:-dxlab_admin}:${POSTGRES_PASSWORD:-dxlab_postgres_password_2026}@postgres:5432/${POSTGRES_DB:-dxlab_db}
       MIGRATIONS_DIR: /app/migrations
+      ATTACHMENT_ROOT: /var/lib/dxlab/attachments
+    volumes:
+      - private_attachments:/var/lib/dxlab/attachments
     networks:
       - app-net
       - data-net
+
+  # Prepares the private attachment volume for the non-root P container.
+  # This also repairs permissions on an existing development volume.
+  attachment-volume-init:
+    image: alpine:3.20
+    profiles:
+      - core
+      - demo
+      - ai
+    command: ["sh", "-c", "mkdir -p /var/lib/dxlab/attachments && chown -R 1000:1000 /var/lib/dxlab/attachments"]
+    volumes:
+      - private_attachments:/var/lib/dxlab/attachments
 
   # ----------------------------------------------------------------------------
   # TẦNG WEB: DX-PORTAL / BIỂU MẪU VÀ BFF (Next.js)
@@ -279,3 +296,4 @@ volumes:
   caddy_data:
   caddy_config:
   mailpit_data:
+  private_attachments:

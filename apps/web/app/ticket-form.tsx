@@ -26,6 +26,8 @@ function validate(values: typeof initial): Errors {
 export function TicketForm() {
   const [values, setValues] = useState(initial);
   const [errors, setErrors] = useState<Errors>({});
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const key = useRef<string>(crypto.randomUUID());
@@ -35,6 +37,18 @@ export function TicketForm() {
   function update(field: Field, value: string) {
     setTicket(null);
     setValues((current) => ({ ...current, [field]: value }));
+  }
+
+  function chooseAttachment(file: File | null) {
+    if (!file) return;
+    const allowed = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'image/png', 'image/jpeg'];
+    if (file.size > 10 * 1024 * 1024 || !allowed.includes(file.type)) {
+      setAttachment(null);
+      setAttachmentError('Chỉ nhận PDF, DOCX, XLSX, PNG hoặc JPG/JPEG, tối đa 10 MB.');
+      return;
+    }
+    setAttachment(file);
+    setAttachmentError(null);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -49,18 +63,23 @@ export function TicketForm() {
     }
     setPending(true);
     try {
+      const requestPayload = attachment ? new FormData() : JSON.stringify(values);
+      if (attachment) {
+        Object.entries(values).forEach(([name, value]) => (requestPayload as FormData).append(name, value));
+        (requestPayload as FormData).append('attachment', attachment);
+      }
       const response = await fetch('/bff/tickets', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key.current },
-        body: JSON.stringify(values),
+        headers: attachment ? { 'Idempotency-Key': key.current } : { 'Content-Type': 'application/json', 'Idempotency-Key': key.current },
+        body: requestPayload,
       });
-      const body = await response.json();
+      const responseBody = await response.json();
       if (!response.ok) {
-        setErrors(body.errors ?? { body: [body.detail ?? 'Không thể gửi yêu cầu. Vui lòng thử lại.'] });
+        setErrors(responseBody.errors ?? { body: [responseBody.detail ?? 'Không thể gửi yêu cầu. Vui lòng thử lại.'] });
         requestAnimationFrame(() => errorSummary.current?.focus());
         return;
       }
-      setTicket(body);
+      setTicket(responseBody);
       setValues(initial);
       key.current = crypto.randomUUID();
       requestAnimationFrame(() => successSummary.current?.focus());
@@ -107,6 +126,14 @@ export function TicketForm() {
             <option value="">Chọn loại yêu cầu</option><option>Khiếu nại</option><option>Tư vấn</option><option>Bảo hành</option>
           </select>
           {errors.provisionalType && <p className="field-error" id="provisionalType-error">{errors.provisionalType[0]}</p>}
+        </div>
+        <div className="field">
+          <label htmlFor="attachment">Tệp đính kèm (sắp hỗ trợ)</label>
+          <input id="attachment" name="attachment" type="file" accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg" disabled={pending}
+            aria-describedby="attachment-help attachment-error" onChange={(event) => chooseAttachment(event.target.files?.[0] ?? null)} />
+          <p className="help" id="attachment-help">PDF, DOCX, XLSX, PNG hoặc JPG/JPEG; tối đa 10 MB.</p>
+          {attachment && <p role="status">Đã chọn: {attachment.name} ({Math.ceil(attachment.size / 1024)} KB). <button type="button" onClick={() => setAttachment(null)}>Bỏ tệp</button></p>}
+          {attachmentError && <p className="field-error" id="attachment-error" role="alert">{attachmentError}</p>}
         </div>
         <div className="field">
           <label htmlFor="description">Nội dung chi tiết <span aria-hidden="true">*</span></label>

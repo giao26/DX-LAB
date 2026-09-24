@@ -26,6 +26,11 @@ RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
 COPY src/adapters/postgres/migrations ./migrations
 
+# The named attachment volume is initialized from this path on first use.
+# Its ownership must match the unprivileged runtime user.
+RUN mkdir -p /var/lib/dxlab/attachments \
+    && chown -R node:node /var/lib/dxlab
+
 USER node
 
 EXPOSE 3000

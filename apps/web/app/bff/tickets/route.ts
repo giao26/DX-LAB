@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const MAX_BODY_BYTES = 32 * 1024;
+const MAX_BODY_BYTES = 11 * 1024 * 1024;
 
 async function readLimitedBody(request: NextRequest): Promise<string | null> {
   const declared = Number(request.headers.get('content-length') ?? 0);
@@ -30,15 +30,18 @@ export async function POST(request: NextRequest) {
   if (!key) return NextResponse.json({ detail: 'Thiếu Idempotency-Key.' }, { status: 400 });
   const upstream = process.env.P_PROCESS_BASE_URL ?? 'http://p-process:3000';
   try {
-    const body = await readLimitedBody(request);
+    const multipart = request.headers.get('content-type')?.startsWith('multipart/form-data');
+    const body = multipart ? request.body : await readLimitedBody(request);
     if (body === null) return NextResponse.json({
       type: 'about:blank', title: 'Dữ liệu quá lớn', status: 413,
       code: 'PAYLOAD_TOO_LARGE', detail: 'Nội dung yêu cầu vượt quá giới hạn cho phép.',
     }, { status: 413 });
     const response = await fetch(`${upstream}/api/v1/tickets`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
-      body,
+      headers: multipart
+        ? { 'Idempotency-Key': key, 'Content-Type': request.headers.get('content-type')! }
+        : { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+      body: body as BodyInit,
       cache: 'no-store',
       signal: AbortSignal.timeout(10_000),
     });

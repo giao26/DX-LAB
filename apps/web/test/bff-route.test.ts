@@ -3,6 +3,23 @@ import { NextRequest } from 'next/server';
 import { POST } from '../app/bff/tickets/route';
 
 describe('POST /bff/tickets', () => {
+  it('chuyển tiếp multipart giữ FormData và không ép Content-Type', async () => {
+    const upstream = vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'TCK-2026-000002' }), {
+      status: 201, headers: { 'Content-Type': 'application/json' },
+    }));
+    vi.stubGlobal('fetch', upstream);
+    const boundary = 'web-test-boundary';
+    const form = `--${boundary}\r\nContent-Disposition: form-data; name="customerName"\r\n\r\nA\r\n--${boundary}\r\nContent-Disposition: form-data; name="attachment"; filename="proof.pdf"\r\nContent-Type: application/pdf\r\n\r\n%PDF-1.7\r\n--${boundary}--\r\n`;
+    const request = new NextRequest('http://localhost/bff/tickets', {
+      method: 'POST', headers: { 'Idempotency-Key': '12345678-1234-4234-8234-123456789010', 'Content-Type': `multipart/form-data; boundary=${boundary}` }, body: form,
+    });
+    const response = await POST(request);
+    expect(response.status).toBe(201);
+    const init = upstream.mock.calls[0][1] as RequestInit;
+    expect(init.body).toBeTruthy();
+    expect(init.headers).toEqual({ 'Idempotency-Key': '12345678-1234-4234-8234-123456789010', 'Content-Type': `multipart/form-data; boundary=${boundary}` });
+  });
+
   it('chuyển tiếp đủ payload, UUID và header replay từ P', async () => {
     const upstream = vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'TCK-2026-000001' }), {
       status: 200,
@@ -41,7 +58,7 @@ describe('POST /bff/tickets', () => {
     vi.stubGlobal('fetch', upstream);
     const request = new NextRequest('http://localhost/bff/tickets', {
       method: 'POST',
-      headers: { 'Idempotency-Key': '12345678-1234-4234-8234-123456789003', 'Content-Length': '40000' },
+      headers: { 'Idempotency-Key': '12345678-1234-4234-8234-123456789003', 'Content-Length': String(12 * 1024 * 1024) },
       body: '{}',
     });
     const response = await POST(request);

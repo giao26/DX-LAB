@@ -16,3 +16,11 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-hoan-tat-moi-truong-ai-haystack.md`
   summary: Ghi lệnh unit test Haystack đầy đủ trong hồ sơ hoàn tất để người bảo trì có thể tái hiện kết quả `35 passed`.
   evidence: Blind review xác nhận Implementation Notes ghi kết quả unit test nhưng chưa ghi nguyên lệnh `uv run --no-cache --locked --extra test pytest -q`; đây là thiếu sót tài liệu mức thấp và việc sửa spec được workflow định tuyến sang deferred work.
+
+- source_spec: none
+  summary: Xay dung lop D: du lieu phan tich, reporting views va dashboard Superset tu ket qua H+P.
+  evidence: Nguoi dung chon tach pham vi de hoan thien truoc mot luong H+P doc lap va kiem thu duoc.
+
+- source_spec: none
+  summary: Xay dung lop I: chunking, embedding, Qdrant, chatbot va AI tren du lieu da duoc giam thieu.
+  evidence: Nguoi dung yeu cau trien khai sau H+P nham tranh dua AI vao truoc khi du lieu va quyen truy cap on dinh.

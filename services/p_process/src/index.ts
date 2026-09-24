@@ -9,13 +9,14 @@ import { createDatabasePool } from './adapters/postgres/db.js';
 import { PostgresTicketIntakeStore } from './adapters/postgres/ticket-intake-store.js';
 import { CreateTicketUseCase } from './application/create-ticket.js';
 import { runMigrations } from './adapters/postgres/migrate.js';
+import { PrivateFilesystemStorage } from './adapters/storage/private-filesystem-storage.js';
 
 const port = Number(process.env.PORT) || 3000;
 const host = process.env.HOST || '0.0.0.0';
 
 const pool = createDatabasePool();
 const createTicket = new CreateTicketUseCase(new PostgresTicketIntakeStore(pool));
-const server = buildApp({}, { createTicket });
+const server = buildApp({}, { createTicket, storage: new PrivateFilesystemStorage() });
 server.addHook('onClose', async () => pool.end());
 
 async function start() {

@@ -45,6 +45,16 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/TicketCreateRequest'
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/TicketCreateRequest'
+                - type: object
+                  properties:
+                    attachment:
+                      type: string
+                      format: binary
+                      description: Optional PDF, DOCX, XLSX, PNG, or JPEG attachment up to 10 MiB.
       responses:
         '200':
           description: Phản hồi được phát lại từ một yêu cầu đã xử lý với cùng Idempotency-Key và payload

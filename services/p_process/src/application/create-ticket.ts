@@ -10,6 +10,14 @@ export interface TicketIntakeResult {
   replayed: boolean;
 }
 
+export interface AttachmentMetadata {
+  storageKey: string;
+  originalName: string;
+  detectedMime: string;
+  byteSize: number;
+  sha256: string;
+}
+
 export interface TicketIntakeStore {
   lookupIdempotency(command: {
     idempotencyKey: string;
@@ -19,6 +27,7 @@ export interface TicketIntakeStore {
     input: TicketCreateInput;
     idempotencyKey: string;
     requestHash: string;
+    attachment?: AttachmentMetadata;
   }): Promise<TicketIntakeResult>;
 }
 
@@ -53,11 +62,11 @@ function stableHash(input: unknown): string {
 export class CreateTicketUseCase {
   constructor(private readonly store: TicketIntakeStore) {}
 
-  async execute(body: unknown, idempotencyKey: string): Promise<TicketIntakeResult> {
-    const requestHash = stableHash(body);
+  async execute(body: unknown, idempotencyKey: string, attachment?: AttachmentMetadata): Promise<TicketIntakeResult> {
+    const requestHash = stableHash({ body, attachmentSha256: attachment?.sha256 ?? null });
     const replay = await this.store.lookupIdempotency({ idempotencyKey, requestHash });
     if (replay) return replay;
     const input = validateTicketCreateInput(body);
-    return this.store.createTicket({ input, idempotencyKey, requestHash });
+    return this.store.createTicket({ input, idempotencyKey, requestHash, attachment });
   }
 }

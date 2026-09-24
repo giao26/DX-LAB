@@ -5,12 +5,15 @@
  */
 
 import Fastify, { FastifyError, FastifyInstance, FastifyServerOptions } from 'fastify';
+import multipart from '@fastify/multipart';
 import { healthRoutes } from './routes/health.js';
 import { ticketRoutes } from './routes/tickets.js';
 import type { CreateTicketUseCase } from '../../application/create-ticket.js';
+import type { PrivateFilesystemStorage } from '../storage/private-filesystem-storage.js';
 
 export interface AppDependencies {
   createTicket?: CreateTicketUseCase;
+  storage?: PrivateFilesystemStorage;
 }
 
 export function buildApp(opts: FastifyServerOptions = {}, dependencies: AppDependencies = {}): FastifyInstance {
@@ -35,15 +38,24 @@ export function buildApp(opts: FastifyServerOptions = {}, dependencies: AppDepen
     ...opts
   });
 
+  app.register(multipart, {
+    limits: { files: 1, fileSize: 10 * 1024 * 1024, fields: 5, parts: 6 },
+  });
+
   // Register routes
   app.register(healthRoutes);
   if (dependencies.createTicket) {
-    app.register(ticketRoutes, { createTicket: dependencies.createTicket });
+    app.register(ticketRoutes, { createTicket: dependencies.createTicket, storage: dependencies.storage });
   }
 
   // RFC 9457 Problem Details error handler
   app.setErrorHandler((error: FastifyError | Error, _request, reply) => {
-    app.log.error({ name: error.name, statusCode: 'statusCode' in error ? error.statusCode : undefined }, 'Request failed');
+    app.log.error({
+      err: error,
+      name: error.name,
+      code: 'code' in error ? error.code : undefined,
+      statusCode: 'statusCode' in error ? error.statusCode : undefined,
+    }, 'Request failed');
     const statusCode = 'statusCode' in error && typeof error.statusCode === 'number' ? error.statusCode : 500;
     return reply
       .status(statusCode)

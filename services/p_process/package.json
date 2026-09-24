@@ -15,6 +15,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@fastify/multipart": "^10.1.2",
     "drizzle-orm": "0.45.2",
     "fastify": "5.12.5",
     "pg": "8.23.0"

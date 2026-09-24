@@ -16,6 +16,15 @@ async function post(key, payload) {
   });
 }
 
+async function postAttachment(key, payload) {
+  const form = new FormData();
+  for (const [name, value] of Object.entries(payload)) form.append(name, value);
+  form.append('attachment', new Blob(['%PDF-1.7\n'], { type: 'application/pdf' }), 'proof.pdf');
+  return fetch(`${baseUrl}/api/v1/tickets`, {
+    method: 'POST', headers: { 'Idempotency-Key': key }, body: form,
+  });
+}
+
 try {
   const body = {
     customerName: 'Khách kiểm thử', customerPhone: `09${suffix}`,
@@ -45,6 +54,21 @@ try {
     [ticket.id],
   );
   assert.deepEqual(sideEffects.rows[0], { audit_count: 1, outbox_count: 1 });
+
+  const attachmentResponse = await postAttachment(randomUUID(), {
+    ...body, customerPhone: `04${suffix}`, customerEmail: `attachment-${suffix}@example.com`,
+  });
+  assert.equal(attachmentResponse.status, 201);
+  const attachmentTicket = await attachmentResponse.json();
+  const attachment = await pool.query(
+    `SELECT original_name, detected_mime, byte_size, sha256
+       FROM dx_core.ticket_attachments WHERE ticket_id = $1`, [attachmentTicket.id],
+  );
+  assert.equal(attachment.rowCount, 1);
+  assert.equal(attachment.rows[0].original_name, 'proof.pdf');
+  assert.equal(attachment.rows[0].detected_mime, 'application/pdf');
+  assert.equal(attachment.rows[0].byte_size, 9);
+  assert.match(attachment.rows[0].sha256, /^[a-f0-9]{64}$/);
 
   const contact = await post(randomUUID(), {
     ...body, customerName: 'Tên không được ghi đè', customerEmail: `other-${suffix}@example.com`,

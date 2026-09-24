@@ -6,6 +6,19 @@ import {
   normalizeVietnamesePhone,
   validateTicketCreateInput,
 } from '../dist/domain/ticket.js';
+import { AttachmentValidationError, validateAttachment } from '../dist/domain/attachment.js';
+
+test('chấp nhận đúng signature của PDF và từ chối tệp giả mạo', () => {
+  assert.equal(validateAttachment('tai-lieu.pdf', 'application/pdf', Buffer.from('%PDF-1.7\n')), 'application/pdf');
+  assert.throws(
+    () => validateAttachment('tai-lieu.pdf', 'application/pdf', Buffer.from('không phải PDF')),
+    AttachmentValidationError,
+  );
+  assert.throws(
+    () => validateAttachment('tai-lieu.exe', 'application/pdf', Buffer.from('%PDF-1.7\n')),
+    AttachmentValidationError,
+  );
+});
 
 test('chuẩn hóa số điện thoại Việt Nam theo quy tắc đã duyệt', () => {
   assert.equal(normalizeVietnamesePhone('+84 912.345-678'), '0912345678');

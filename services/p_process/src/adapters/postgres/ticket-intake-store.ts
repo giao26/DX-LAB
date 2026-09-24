@@ -133,6 +133,16 @@ export class PostgresTicketIntakeStore implements TicketIntakeStore {
         updatedAt: row.updated_at.toISOString(),
       };
 
+      if (command.attachment) {
+        await client.query(
+          `INSERT INTO dx_core.ticket_attachments
+            (ticket_id, storage_key, original_name, detected_mime, byte_size, sha256)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [ticket.id, command.attachment.storageKey, command.attachment.originalName,
+            command.attachment.detectedMime, command.attachment.byteSize, command.attachment.sha256],
+        );
+      }
+
       const eventPayload = {
         ticket_id: ticket.id,
         ticket_code: ticket.code,
