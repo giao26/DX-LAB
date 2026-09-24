@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-19-2026 15:15
-last_updated: 09-24-2026 20:30
+last_updated: 09-24-2026 22:26
 project: DX-LAB
 project_key: NOKEY
 tracking_system: file-system
@@ -39,7 +39,7 @@ development_status:
   1-1-người-duy-trì-chuyển-mã-hiện-có-sang-cấu-trúc-kiến-trúc-chuẩ: done
   1-2-người-mới-dựng-các-profile-tái-lập-mà-không-cần-tải-ai: done
   1-3-khách-tạo-ticket-hợp-lệ: done
-  1-4-khách-nhận-email-xác-nhận-không-trùng: review
+  1-4-khách-nhận-email-xác-nhận-không-trùng: done
   1-5-khách-gửi-tệp-đính-kèm-riêng-tư: backlog
   1-6-người-dùng-nội-bộ-xem-ticket-đúng-phạm-vi-trách-nhiệm: backlog
   1-7-hệ-thống-phân-công-công-bằng-và-thông-báo-qua-odoo: backlog
