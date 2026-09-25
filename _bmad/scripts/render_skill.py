@@ -14,6 +14,7 @@ import re
 import shutil
 import sys
 import tempfile
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -292,12 +293,29 @@ def _verify_existing(destination: Path, manifest: dict[str, Any]) -> None:
             raise RenderError(f"generation output hash mismatch: {destination / name}")
 
 
+def _make_staging_directory(parent: Path) -> Path:
+    if os.name != "nt":
+        return Path(tempfile.mkdtemp(prefix=".staging-", dir=parent))
+
+    # Python's tempfile uses mode 0o700. On Windows that can create an ACL that
+    # excludes the sandbox identity used for subsequent file operations. Let
+    # the staging directory inherit its parent's ACL instead.
+    for _ in range(10):
+        staging = parent / f".staging-{uuid.uuid4().hex[:8]}"
+        try:
+            staging.mkdir()
+        except FileExistsError:
+            continue
+        return staging
+    raise OSError(f"failed to allocate a staging directory under {parent}")
+
+
 def _publish(destination: Path, outputs: dict[str, bytes], manifest: dict[str, Any]) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.exists():
         _verify_existing(destination, manifest)
         return
-    staging = Path(tempfile.mkdtemp(prefix=".staging-", dir=destination.parent))
+    staging = _make_staging_directory(destination.parent)
     try:
         for name, content in outputs.items():
             path = staging / name

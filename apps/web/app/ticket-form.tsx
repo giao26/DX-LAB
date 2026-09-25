@@ -3,7 +3,8 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 
 type Field = 'customerName' | 'customerPhone' | 'customerEmail' | 'provisionalType' | 'description';
-type Errors = Partial<Record<Field | 'body', string[]>>;
+type ErrorField = Field | 'attachment' | 'body';
+type Errors = Partial<Record<ErrorField, string[]>>;
 type Ticket = {
   id?: string;
   code: string;
@@ -13,6 +14,7 @@ type Ticket = {
 };
 
 const initial = { customerName: '', customerPhone: '', customerEmail: '', provisionalType: '', description: '' };
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
 function validate(values: typeof initial): Errors {
   const errors: Errors = {};
@@ -33,11 +35,13 @@ export function TicketForm() {
   const [values, setValues] = useState(initial);
   const [errors, setErrors] = useState<Errors>({});
   const [pending, setPending] = useState(false);
+  const [attachments, setAttachments] = useState<File[]>([]);
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [emailStatus, setEmailStatus] = useState<'PENDING' | 'PROCESSING' | 'SENT' | 'FAILED' | 'DEAD_LETTER' | null>(null);
   const key = useRef<string>(crypto.randomUUID());
   const errorSummary = useRef<HTMLDivElement>(null);
   const successSummary = useRef<HTMLDivElement>(null);
+  const attachmentInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!ticket?.id) return;
@@ -83,6 +87,12 @@ export function TicketForm() {
     if (pending) return;
     setErrors({});
     const clientErrors = validate(values);
+    if (attachments.length > 1) clientErrors.attachment = ['Chỉ được phép đính kèm một tệp.'];
+    else if (attachments[0] && attachments[0].size > MAX_ATTACHMENT_BYTES) {
+      clientErrors.attachment = ['Tệp đính kèm không được lớn hơn 10 MB.'];
+    } else if (attachments[0] && !['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].includes(attachments[0].type)) {
+      clientErrors.attachment = ['Tệp phải là JPG, PNG, WebP hoặc PDF.'];
+    }
     if (Object.keys(clientErrors).length > 0) {
       setErrors(clientErrors);
       requestAnimationFrame(() => errorSummary.current?.focus());
@@ -90,10 +100,13 @@ export function TicketForm() {
     }
     setPending(true);
     try {
+      const formData = new FormData();
+      Object.entries(values).forEach(([name, value]) => formData.append(name, value));
+      attachments.forEach((file) => formData.append('attachment', file));
       const response = await fetch('/bff/tickets', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key.current },
-        body: JSON.stringify(values),
+        headers: { 'Idempotency-Key': key.current },
+        body: formData,
       });
       const body = await response.json();
       if (!response.ok) {
@@ -104,6 +117,8 @@ export function TicketForm() {
       setTicket(body);
       setEmailStatus(body.confirmationEmailStatus ?? 'PENDING');
       setValues(initial);
+      setAttachments([]);
+      if (attachmentInput.current) attachmentInput.current.value = '';
       key.current = crypto.randomUUID();
       requestAnimationFrame(() => successSummary.current?.focus());
     } catch {
@@ -164,6 +179,19 @@ export function TicketForm() {
             onChange={(event) => update('description', event.target.value)} />
           <p className="help" id="description-help">Từ 10 đến 4.000 ký tự.</p>
           {errors.description && <p className="field-error" id="description-error">{errors.description[0]}</p>}
+        </div>
+        <div className="field">
+          <label htmlFor="attachment">Tệp minh họa (không bắt buộc)</label>
+          <input ref={attachmentInput} id="attachment" name="attachment" type="file" multiple disabled={pending}
+            accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
+            aria-invalid={Boolean(errors.attachment)} aria-describedby={errors.attachment ? 'attachment-error' : 'attachment-help'}
+            onChange={(event) => {
+              setTicket(null);
+              setEmailStatus(null);
+              setAttachments(Array.from(event.target.files ?? []));
+            }} />
+          <p className="help" id="attachment-help">Tối đa một tệp JPG, PNG, WebP hoặc PDF; không quá 10 MB.</p>
+          {errors.attachment && <p className="field-error" id="attachment-error">{errors.attachment[0]}</p>}
         </div>
         <button type="submit" disabled={pending}>{pending ? 'Đang gửi…' : 'Gửi yêu cầu'}</button>
       </form>

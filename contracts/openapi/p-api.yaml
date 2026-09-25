@@ -74,10 +74,18 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '413':
+          description: Payload hoặc tệp đính kèm vượt giới hạn cho phép
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
 
     get:
       summary: Tra cứu danh sách ticket
       operationId: listTickets
+      security:
+        - keycloakBearer: [tickets:read]
       parameters:
         - name: status
           in: query
@@ -114,14 +122,36 @@ paths:
                   items:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Ticket'
+                      $ref: '#/components/schemas/InternalTicketListItem'
                   total:
                     type: integer
+        '400':
+          description: Bộ lọc hoặc phân trang không hợp lệ
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+        '401':
+          description: Thiếu hoặc sai bearer token
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+        '403':
+          description: Token thiếu scope hoặc calling client không được tin cậy
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+        '503':
+          description: Nhà cung cấp danh tính tạm thời không sẵn sàng
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
 
   /api/v1/tickets/{ticketId}:
     get:
       summary: Tra cứu chi tiết ticket theo ID
       operationId: getTicketById
+      security:
+        - keycloakBearer: [tickets:read]
       parameters:
         - name: ticketId
           in: path
@@ -135,9 +165,15 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Ticket'
-        '400':
-          description: Mã ticket không hợp lệ (không đúng định dạng UUID)
+                $ref: '#/components/schemas/InternalTicketDetail'
+        '401':
+          description: Thiếu hoặc sai bearer token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Token thiếu scope hoặc calling client không được tin cậy
           content:
             application/problem+json:
               schema:
@@ -148,9 +184,137 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '503':
+          description: Nhà cung cấp danh tính tạm thời không sẵn sàng
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+
+  /api/v1/public/tickets/{ticketId}/status:
+    get:
+      summary: Polling trạng thái công khai tối thiểu
+      operationId: getPublicTicketStatus
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Trạng thái an toàn, không chứa PII hoặc liên kết tệp
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicTicketStatus' }
+        '404':
+          description: Không tìm thấy
+
+  /api/v1/attachments/{attachmentId}/download:
+    get:
+      summary: Tải tệp sau khi kiểm tra quyền trên từng tài nguyên
+      operationId: downloadTicketAttachment
+      security:
+        - keycloakBearer: [tickets:download]
+      parameters:
+        - name: attachmentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Nội dung tệp
+          content:
+            application/octet-stream: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/webp: { schema: { type: string, format: binary } }
+            application/pdf: { schema: { type: string, format: binary } }
+        '401':
+          description: Thiếu hoặc sai bearer token
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+        '403':
+          description: Token thiếu scope hoặc calling client không được tin cậy
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+        '404':
+          description: Không tồn tại hoặc ngoài phạm vi
+        '503':
+          description: Nhà cung cấp danh tính tạm thời không sẵn sàng
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
 
 components:
+  securitySchemes:
+    keycloakBearer:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: /realms/dxlab/protocol/openid-connect/auth
+          tokenUrl: /realms/dxlab/protocol/openid-connect/token
+          scopes:
+            tickets:read: Đọc ticket theo phạm vi trách nhiệm
+            tickets:download: Tải tệp của ticket được phép
   schemas:
+    PublicTicketStatus:
+      type: object
+      additionalProperties: false
+      required: [id, code, status, confirmationEmailStatus]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        status: { type: string, enum: [WAITING, IN_PROGRESS, CLOSED] }
+        confirmationEmailStatus: { type: string, enum: [PENDING, PROCESSING, SENT, FAILED, DEAD_LETTER] }
+
+    InternalTicketListItem:
+      type: object
+      additionalProperties: false
+      required: [id, code, provisionalType, status, slaDueAt, summary]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        provisionalType: { type: string }
+        status: { type: string, enum: [WAITING, IN_PROGRESS, CLOSED] }
+        slaDueAt: { type: [string, 'null'], format: date-time }
+        summary: { type: string }
+
+    InternalTicketDetail:
+      type: object
+      additionalProperties: false
+      required: [id, code, provisionalType, status, slaDueAt, summary, description, groupId, assignedToMe]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        provisionalType: { type: string }
+        status: { type: string, enum: [WAITING, IN_PROGRESS, CLOSED] }
+        slaDueAt: { type: [string, 'null'], format: date-time }
+        summary: { type: string }
+        description: { type: string }
+        groupId: { type: string }
+        assignedToMe: { type: boolean }
+        customer:
+          type: object
+          additionalProperties: false
+          required: [name, phone, email]
+          properties:
+            name: { type: string }
+            phone: { type: string }
+            email: { type: string, format: email }
+        attachment:
+          $ref: '#/components/schemas/InternalTicketAttachment'
+
+    InternalTicketAttachment:
+      type: object
+      additionalProperties: false
+      required: [id, displayName, sizeBytes, detectedMime, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string }
+        sizeBytes: { type: integer, maximum: 10485760 }
+        detectedMime: { type: string }
+        createdAt: { type: string, format: date-time }
     HealthResponse:
       type: object
       required:
@@ -235,6 +399,47 @@ components:
           type: string
           minLength: 10
           maxLength: 4000
+        attachment:
+          $ref: '#/components/schemas/AttachmentCreateRequest'
+
+    AttachmentCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [fileName, mimeType, data]
+      properties:
+        fileName:
+          type: string
+          maxLength: 255
+        mimeType:
+          type: string
+          enum: [image/jpeg, image/png, image/webp, application/pdf]
+        data:
+          type: string
+          contentEncoding: base64
+          maxLength: 13981016
+
+    TicketAttachment:
+      type: object
+      additionalProperties: false
+      required: [id, displayName, sizeBytes, detectedMime, checksumSha256, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+        sizeBytes:
+          type: integer
+          maximum: 10485760
+        detectedMime:
+          type: string
+          enum: [image/jpeg, image/png, image/webp, application/pdf]
+        checksumSha256:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        createdAt:
+          type: string
+          format: date-time
 
     Ticket:
       type: object
@@ -287,7 +492,7 @@ components:
           type: boolean
         confirmationEmailStatus:
           type: string
-          enum: [PENDING, SENT, FAILED, DEAD_LETTER]
+          enum: [PENDING, PROCESSING, SENT, FAILED, DEAD_LETTER]
         receivedAt:
           type: string
           format: date-time
@@ -297,3 +502,5 @@ components:
         updatedAt:
           type: string
           format: date-time
+        attachment:
+          $ref: '#/components/schemas/TicketAttachment'

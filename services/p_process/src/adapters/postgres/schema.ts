@@ -87,6 +87,8 @@ export const tickets = dxCoreSchema.table('tickets', {
   description: text('description').notNull(),
   status: varchar('status', { length: 20 }).default('WAITING').notNull(),
   provisionalType: varchar('provisional_type', { length: 30 }).notNull(),
+  groupId: varchar('group_id', { length: 100 }),
+  assignedSub: varchar('assigned_sub', { length: 255 }),
   contactReviewRequired: boolean('contact_review_required').default(false).notNull(),
   receivedAt: timestamp('received_at', { withTimezone: true }).defaultNow().notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -114,5 +116,18 @@ export const notifications = dxCoreSchema.table('notifications', {
 }, (table) => [
   index('idx_notifications_ticket_id').on(table.ticketId),
   index('idx_notifications_status').on(table.status, table.createdAt)
+]);
+
+export const ticketAttachments = dxCoreSchema.table('ticket_attachments', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  ticketId: uuid('ticket_id').notNull().unique().references(() => tickets.id, { onDelete: 'cascade' }),
+  storageKey: uuid('storage_key').notNull().unique(),
+  displayName: varchar('display_name', { length: 255 }).notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  detectedMime: varchar('detected_mime', { length: 100 }).notNull(),
+  checksumSha256: varchar('checksum_sha256', { length: 64 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_ticket_attachments_ticket_id').on(table.ticketId),
 ]);
 

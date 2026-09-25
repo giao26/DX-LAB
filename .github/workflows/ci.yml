@@ -59,9 +59,24 @@ jobs:
           docker exec -i dxlab-postgres psql -v ON_ERROR_STOP=1 -U dxlab_admin -d dxlab_upgrade_test < services/p_process/src/adapters/postgres/migrations/0001_initial_technical_schema.sql
           docker exec -i dxlab-postgres psql -v ON_ERROR_STOP=1 -U dxlab_admin -d dxlab_upgrade_test < services/p_process/src/adapters/postgres/migrations/0002_ticket_intake.sql
           docker exec -i dxlab-postgres psql -v ON_ERROR_STOP=1 -U dxlab_admin -d dxlab_upgrade_test < services/p_process/src/adapters/postgres/migrations/0003_expand_ticket_status.sql
-          test "$(docker exec dxlab-postgres psql -U dxlab_admin -d dxlab_upgrade_test -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='dx_core' AND table_name IN ('customers','tickets')")" = "2"
-          docker cp services/p_process/test/ticket-integration.mjs dxlab-p-process:/app/ticket-integration.mjs
-          docker exec dxlab-p-process node /app/ticket-integration.mjs
+          docker exec -i dxlab-postgres psql -v ON_ERROR_STOP=1 -U dxlab_admin -d dxlab_upgrade_test < services/p_process/src/adapters/postgres/migrations/0004_ticket_notifications.sql
+          docker exec -i dxlab-postgres psql -v ON_ERROR_STOP=1 -U dxlab_admin -d dxlab_upgrade_test < services/p_process/src/adapters/postgres/migrations/0005_private_ticket_attachments.sql
+          docker exec -i dxlab-postgres psql -v ON_ERROR_STOP=1 -U dxlab_admin -d dxlab_upgrade_test < services/p_process/src/adapters/postgres/migrations/0006_ticket_access_scope.sql
+          test "$(docker exec dxlab-postgres psql -U dxlab_admin -d dxlab_upgrade_test -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='dx_core' AND table_name IN ('customers','tickets','notifications','ticket_attachments')")" = "4"
+          test "$(docker exec dxlab-postgres psql -U dxlab_admin -d dxlab_upgrade_test -Atc "SELECT count(*) FROM information_schema.columns WHERE table_schema='dx_core' AND table_name='tickets' AND column_name IN ('group_id','assigned_sub')")" = "2"
+          docker exec dxlab-p-process mkdir -p /app/test
+          docker cp services/p_process/test/ticket-integration.mjs dxlab-p-process:/app/test/ticket-integration.mjs
+          docker exec dxlab-p-process node /app/test/ticket-integration.mjs
+
+      - name: Smoke test stock Keycloak runtime
+        run: |
+          docker compose --profile demo up -d --no-deps keycloak
+          for i in $(seq 1 60); do
+            docker exec dxlab-p-process node -e "fetch('http://keycloak:8080/realms/dxlab/.well-known/openid-configuration').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" && break
+            sleep 2
+          done
+          docker cp services/p_process/test/keycloak-runtime-smoke.mjs dxlab-p-process:/app/test/keycloak-runtime-smoke.mjs
+          docker exec dxlab-p-process node /app/test/keycloak-runtime-smoke.mjs
 
       - name: Test and Build Web BFF
         run: |
@@ -69,6 +84,11 @@ jobs:
           npm test --prefix apps/web
           npm run test:e2e --prefix apps/web
           npm run build --prefix apps/web
+
+      - name: Test Odoo ticket adapter
+        run: |
+          python -m unittest discover -s services/h_human/addons/dx_core/tests -p "test_*.py"
+          python -m compileall -q services/h_human/addons/dx_core
 
       - name: Run Intelligence Provider Unit Tests (Offline)
         env:

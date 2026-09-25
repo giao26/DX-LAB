@@ -541,6 +541,65 @@ class ArchitectureChecker:
                 if actual_img != expected_img:
                     self.log_error("IMAGE_PIN_MISMATCH", f"Service '{svc_name}' image expected '{expected_img}', found '{actual_img}'")
 
+        if 'KC_FEATURES: token-exchange-standard:v2' not in compose_content:
+            self.log_error(
+                "INVALID_KEYCLOAK_FEATURE",
+                "Keycloak 26.7.4 must enable token-exchange-standard:v2 for the Odoo delegated-token flow",
+            )
+        for required_config in (
+            'OIDC_ISSUER: ${OIDC_ISSUER:-http://localhost/realms/dxlab}',
+            'KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-http://localhost}',
+            'KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"',
+        ):
+            if required_config not in compose_content:
+                self.log_error(
+                    "INVALID_KEYCLOAK_HOSTNAME",
+                    f"Canonical public issuer/backchannel configuration is missing: {required_config}",
+                )
+
+        realm_path = self.root_dir / 'infra' / 'keycloak' / 'dxlab-realm.json'
+        if realm_path.exists():
+            realm = json.loads(realm_path.read_text(encoding='utf-8'))
+            basic_scope = next(
+                (scope for scope in realm.get('clientScopes', []) if scope.get('name') == 'basic'),
+                None,
+            )
+            mappers = basic_scope.get('protocolMappers', []) if basic_scope else []
+            if not any(mapper.get('protocolMapper') == 'oidc-sub-mapper' for mapper in mappers):
+                self.log_error(
+                    "MISSING_KEYCLOAK_SUBJECT_MAPPER",
+                    "Keycloak realm must put the standard sub claim into access-token introspection",
+                )
+            clients = {client.get('clientId'): client for client in realm.get('clients', [])}
+            login_client = clients.get('odoo-login', {})
+            if 'http://localhost/auth_oauth/signin' not in login_client.get('redirectUris', []):
+                self.log_error(
+                    "MISSING_ODOO_LOGIN_CLIENT",
+                    "Keycloak realm must provision the Odoo authorization-code redirect",
+                )
+            if login_client.get('implicitFlowEnabled') is not True:
+                self.log_error(
+                    "INVALID_ODOO_LOGIN_FLOW",
+                    "Odoo 17 auth_oauth requires the Keycloak implicit login flow",
+                )
+            login_audiences = {
+                mapper.get('config', {}).get('included.client.audience')
+                for mapper in login_client.get('protocolMappers', [])
+            }
+            if 'odoo' not in login_audiences:
+                self.log_error(
+                    "MISSING_ODOO_EXCHANGE_AUDIENCE",
+                    "Odoo login tokens must include the confidential Odoo requester in aud",
+                )
+            exchange_client = clients.get('odoo', {})
+            if exchange_client.get('attributes', {}).get('standard.token.exchange.enabled') != 'true':
+                self.log_error(
+                    "MISSING_ODOO_TOKEN_EXCHANGE",
+                    "Keycloak realm must enable standard token exchange for Odoo",
+                )
+        else:
+            self.log_error("MISSING_FILE", "infra/keycloak/dxlab-realm.json not found")
+
         if 'node-red' in services:
             ctx = services['node-red'].get('build_context', '')
             if './services/p_automation' not in ctx:

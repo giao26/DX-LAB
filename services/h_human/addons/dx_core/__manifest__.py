@@ -16,9 +16,12 @@
     'depends': [
         'base',
         'hr',
+        'auth_oauth',
     ],
     'data': [
         'security/ir.model.access.csv',
+        'data/oauth_provider.xml',
+        'views/dx_ticket_workspace_views.xml',
     ],
     'installable': True,
     'application': True,

@@ -26,6 +26,8 @@ RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
 COPY src/adapters/postgres/migrations ./migrations
 
+RUN mkdir -p /app/private-attachments && chown -R node:node /app/private-attachments
+
 USER node
 
 EXPOSE 3000

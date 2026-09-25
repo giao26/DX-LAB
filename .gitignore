@@ -59,6 +59,7 @@ services/p_automation/data/package.json
 services/i_intelligence/ollama/models/
 services/i_intelligence/qdrant/storage/
 services/d_data/postgres/data/
+services/p_process/private-attachments/
 
 # IDE & Editor
 .vscode/

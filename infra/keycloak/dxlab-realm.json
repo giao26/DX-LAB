@@ -1,0 +1,174 @@
+{
+  "realm": "dxlab",
+  "enabled": true,
+  "displayName": "DX-LAB",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "roles": {
+    "realm": [
+      { "name": "employee" },
+      { "name": "group_lead" },
+      { "name": "department_head" },
+      { "name": "director" }
+    ]
+  },
+  "groups": [
+    { "name": "complaints" },
+    { "name": "consulting" },
+    { "name": "warranty" }
+  ],
+  "clientScopes": [
+    {
+      "name": "basic",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "false" },
+      "protocolMappers": [
+        {
+          "name": "sub",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-sub-mapper",
+          "config": { "access.token.claim": "true", "introspection.token.claim": "true" }
+        }
+      ]
+    },
+    { "name": "tickets:read", "protocol": "openid-connect", "attributes": { "include.in.token.scope": "true" } },
+    { "name": "tickets:download", "protocol": "openid-connect", "attributes": { "include.in.token.scope": "true" } }
+  ],
+  "clients": [
+    {
+      "clientId": "p-process",
+      "name": "P Process API",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "p-process-dev-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "protocolMappers": [
+        {
+          "name": "p-process-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.client.audience": "p-process", "access.token.claim": "true" }
+        }
+      ]
+    },
+    {
+      "clientId": "web",
+      "name": "DX Web",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["http://localhost/*"],
+      "webOrigins": ["http://localhost"],
+      "defaultClientScopes": ["basic", "tickets:read"],
+      "optionalClientScopes": ["tickets:download"],
+      "protocolMappers": [
+        {
+          "name": "p-process-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.client.audience": "p-process", "access.token.claim": "true" }
+        },
+        {
+          "name": "odoo-exchange-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.client.audience": "odoo", "access.token.claim": "true" }
+        }
+      ]
+    },
+    {
+      "clientId": "odoo-login",
+      "name": "DX Odoo Login",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://localhost/auth_oauth/signin"],
+      "webOrigins": ["http://localhost"],
+      "defaultClientScopes": ["basic", "tickets:read"],
+      "optionalClientScopes": ["tickets:download"],
+      "protocolMappers": [
+        {
+          "name": "p-process-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.client.audience": "p-process", "access.token.claim": "true" }
+        },
+        {
+          "name": "odoo-exchange-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.client.audience": "odoo", "access.token.claim": "true" }
+        }
+      ]
+    },
+    {
+      "clientId": "odoo",
+      "name": "DX Odoo",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "odoo-dev-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "defaultClientScopes": ["basic", "tickets:read"],
+      "optionalClientScopes": ["tickets:download"],
+      "attributes": {
+        "standard.token.exchange.enabled": "true",
+        "token.exchange.grant.enabled": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "p-process-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.client.audience": "p-process", "access.token.claim": "true" }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-p-process",
+      "enabled": true,
+      "serviceAccountClientId": "p-process",
+      "clientRoles": { "realm-management": ["view-users", "query-groups", "view-realm"] }
+    },
+    {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "username": "staff.warranty",
+      "enabled": true,
+      "email": "staff.warranty@example.invalid",
+      "firstName": "Staff",
+      "lastName": "Warranty",
+      "credentials": [{ "type": "password", "value": "dxlab-demo-2026", "temporary": false }],
+      "realmRoles": ["employee"],
+      "groups": ["/warranty"]
+    },
+    {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "username": "lead.warranty",
+      "enabled": true,
+      "email": "lead.warranty@example.invalid",
+      "credentials": [{ "type": "password", "value": "dxlab-demo-2026", "temporary": false }],
+      "realmRoles": ["employee", "group_lead"],
+      "groups": ["/warranty"]
+    },
+    {
+      "id": "33333333-3333-4333-8333-333333333333",
+      "username": "director",
+      "enabled": true,
+      "email": "director@example.invalid",
+      "credentials": [{ "type": "password", "value": "dxlab-demo-2026", "temporary": false }],
+      "realmRoles": ["director"]
+    }
+  ]
+}

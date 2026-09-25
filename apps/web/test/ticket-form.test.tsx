@@ -38,6 +38,24 @@ describe('TicketForm', () => {
     expect(screen.getAllByText('Email không đúng định dạng.')).toHaveLength(2);
   });
 
+  it('từ chối nhiều tệp tại UI, giữ nội dung và liên kết lỗi tới trường tệp', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    render(<TicketForm />);
+    fillValidForm();
+    const input = screen.getByLabelText(/Tệp minh họa/);
+    fireEvent.change(input, { target: { files: [
+      new File(['a'], 'a.pdf', { type: 'application/pdf' }),
+      new File(['b'], 'b.pdf', { type: 'application/pdf' }),
+    ] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Gửi yêu cầu' }));
+    const summary = await screen.findByRole('alert');
+    await waitFor(() => expect(summary).toHaveFocus());
+    expect(screen.getAllByText('Chỉ được phép đính kèm một tệp.')).toHaveLength(2);
+    expect(screen.getByLabelText(/Họ và tên/)).toHaveValue('Nguyễn Văn A');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('focus xác nhận và hiện mã ticket khi thành công', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,

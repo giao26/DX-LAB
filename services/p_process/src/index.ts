@@ -8,12 +8,19 @@ import { ProcessNotificationsUseCase } from './application/process-notifications
 import { runMigrations } from './adapters/postgres/migrate.js';
 import type { IAuditPort } from './application/ports.js';
 import { sanitizeLogData } from './domain/notification.js';
+import { PostgresTicketReadStore } from './adapters/postgres/ticket-read-store.js';
+import { ReadTicketsUseCase } from './application/read-tickets.js';
+import { OidcIdentityVerifier } from './adapters/http/oidc-identity-verifier.js';
+import { FilesystemAttachmentStorage } from './adapters/storage/filesystem-attachment-storage.js';
 
 const port = Number(process.env.PORT) || 3000;
 const host = process.env.HOST || '0.0.0.0';
 
 const pool = createDatabasePool();
-const ticketStore = new PostgresTicketIntakeStore(pool);
+const attachmentStorage = new FilesystemAttachmentStorage();
+const ticketStore = new PostgresTicketIntakeStore(pool, attachmentStorage);
+const ticketReadStore = new PostgresTicketReadStore(pool);
+const readTickets = new ReadTicketsUseCase(ticketReadStore, ticketReadStore);
 const notificationStore = new PostgresNotificationStore(pool);
 const mailer = new SmtpMailer();
 const createTicket = new CreateTicketUseCase(ticketStore);
@@ -22,7 +29,10 @@ let workerInterval: NodeJS.Timeout | null = null;
 
 const server = buildApp({}, {
   createTicket,
-  getTicketById: (id) => ticketStore.getTicketById(id),
+  getPublicTicketStatus: (id) => ticketStore.getPublicTicketStatus(id),
+  identityVerifier: new OidcIdentityVerifier(),
+  readTickets,
+  attachmentStorage,
 });
 
 const auditPort: IAuditPort = {

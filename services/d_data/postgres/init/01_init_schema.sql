@@ -90,6 +90,8 @@ CREATE TABLE IF NOT EXISTS dx_core.tickets (
     description TEXT NOT NULL CHECK (char_length(description) BETWEEN 10 AND 4000),
     status VARCHAR(20) DEFAULT 'WAITING' NOT NULL CHECK (status IN ('WAITING', 'IN_PROGRESS', 'CLOSED')),
     provisional_type VARCHAR(30) NOT NULL CHECK (provisional_type IN ('Khiếu nại', 'Tư vấn', 'Bảo hành')),
+    group_id VARCHAR(100),
+    assigned_sub VARCHAR(255),
     contact_review_required BOOLEAN DEFAULT FALSE NOT NULL,
     received_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -98,6 +100,8 @@ CREATE TABLE IF NOT EXISTS dx_core.tickets (
 
 CREATE INDEX IF NOT EXISTS idx_tickets_customer ON dx_core.tickets(customer_id);
 CREATE INDEX IF NOT EXISTS idx_tickets_status_received ON dx_core.tickets(status, received_at);
+CREATE INDEX IF NOT EXISTS idx_tickets_group_received ON dx_core.tickets(group_id, received_at, id);
+CREATE INDEX IF NOT EXISTS idx_tickets_assigned_sub ON dx_core.tickets(assigned_sub) WHERE assigned_sub IS NOT NULL;
 
 -- Story 1.4: outbox notifications for confirmation emails. Keep this bootstrap aligned with migration 0004.
 CREATE TABLE IF NOT EXISTS dx_core.notifications (
@@ -119,4 +123,18 @@ CREATE TABLE IF NOT EXISTS dx_core.notifications (
 
 CREATE INDEX IF NOT EXISTS idx_notifications_ticket_id ON dx_core.notifications(ticket_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_status ON dx_core.notifications(status, created_at);
+
+-- Story 1.5: only metadata is stored in PostgreSQL; bytes live in a private volume.
+CREATE TABLE IF NOT EXISTS dx_core.ticket_attachments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ticket_id UUID UNIQUE NOT NULL REFERENCES dx_core.tickets(id) ON DELETE CASCADE,
+    storage_key UUID UNIQUE NOT NULL,
+    display_name VARCHAR(255) NOT NULL,
+    size_bytes BIGINT NOT NULL CHECK (size_bytes > 0 AND size_bytes <= 10485760),
+    detected_mime VARCHAR(100) NOT NULL CHECK (detected_mime IN ('image/jpeg', 'image/png', 'image/webp', 'application/pdf')),
+    checksum_sha256 CHAR(64) NOT NULL CHECK (checksum_sha256 ~ '^[0-9a-f]{64}$'),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket_id ON dx_core.ticket_attachments(ticket_id);
 

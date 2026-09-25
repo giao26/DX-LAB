@@ -9,14 +9,22 @@ import { healthRoutes } from './routes/health.js';
 import { ticketRoutes } from './routes/tickets.js';
 import type { CreateTicketUseCase } from '../../application/create-ticket.js';
 import type { TicketRecord } from '../../domain/ticket.js';
+import type { IdentityVerifier } from '../../application/principal.js';
+import type { ReadTicketsUseCase } from '../../application/read-tickets.js';
+import type { AttachmentStorage } from '../storage/filesystem-attachment-storage.js';
 
 export interface AppDependencies {
   createTicket?: CreateTicketUseCase;
   getTicketById?: (id: string) => Promise<TicketRecord | null>;
+  getPublicTicketStatus?: (id: string) => Promise<Pick<TicketRecord, 'id' | 'code' | 'status' | 'confirmationEmailStatus'> | null>;
+  identityVerifier?: IdentityVerifier;
+  readTickets?: ReadTicketsUseCase;
+  attachmentStorage?: AttachmentStorage;
 }
 
 export function buildApp(opts: FastifyServerOptions = {}, dependencies: AppDependencies = {}): FastifyInstance {
   const app = Fastify({
+    bodyLimit: 15 * 1024 * 1024,
     logger: {
       level: process.env.LOG_LEVEL || 'info',
       formatters: {
@@ -43,6 +51,10 @@ export function buildApp(opts: FastifyServerOptions = {}, dependencies: AppDepen
     app.register(ticketRoutes, {
       createTicket: dependencies.createTicket,
       getTicketById: dependencies.getTicketById,
+      getPublicTicketStatus: dependencies.getPublicTicketStatus,
+      identityVerifier: dependencies.identityVerifier,
+      readTickets: dependencies.readTickets,
+      attachmentStorage: dependencies.attachmentStorage,
     });
   }
 

@@ -67,6 +67,18 @@ services:
       MIGRATIONS_DIR: /app/migrations
       SMTP_HOST: ${SMTP_HOST:-mailpit}
       SMTP_PORT: ${MAILPIT_SMTP_PORT:-1025}
+      ATTACHMENT_STORAGE_PATH: /app/private-attachments
+      TICKET_TYPE_GROUP_MAPPING: ${TICKET_TYPE_GROUP_MAPPING:-}
+      OIDC_ISSUER: ${OIDC_ISSUER:-http://localhost/realms/dxlab}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-p-process}
+      OIDC_INTROSPECTION_URL: ${OIDC_INTROSPECTION_URL:-http://keycloak:8080/realms/dxlab/protocol/openid-connect/token/introspect}
+      OIDC_TOKEN_URL: ${OIDC_TOKEN_URL:-http://keycloak:8080/realms/dxlab/protocol/openid-connect/token}
+      OIDC_ADMIN_BASE_URL: ${OIDC_ADMIN_BASE_URL:-http://keycloak:8080/admin/realms/dxlab}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-p-process}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-p-process-dev-secret}
+      OIDC_TRUSTED_CLIENT_IDS: ${OIDC_TRUSTED_CLIENT_IDS:-web,odoo}
+    volumes:
+      - attachment_data:/app/private-attachments
     networks:
       - app-net
       - data-net
@@ -124,7 +136,7 @@ services:
     restart: unless-stopped
     profiles:
       - demo
-    command: start-dev
+    command: start-dev --import-realm
     depends_on:
       - postgres
     environment:
@@ -137,6 +149,11 @@ services:
       KC_HTTP_ENABLED: "true"
       KC_HOSTNAME_STRICT: "false"
       KC_PROXY_HEADERS: xforwarded
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-http://localhost}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_FEATURES: token-exchange-standard:v2
+    volumes:
+      - ./infra/keycloak:/opt/keycloak/data/import:ro
     networks:
       - app-net
       - data-net
@@ -159,6 +176,10 @@ services:
       PORT: 5432
       USER: ${ODOO_DB_USER:-odoo}
       PASSWORD: ${ODOO_DB_PASSWORD:-odoo_secure_password_2026}
+      P_API_BASE_URL: ${ODOO_P_API_BASE_URL:-http://p-process:3000}
+      OIDC_TOKEN_URL: ${ODOO_OIDC_TOKEN_URL:-http://keycloak:8080/realms/dxlab/protocol/openid-connect/token}
+      P_CLIENT_ID: ${ODOO_P_CLIENT_ID:-odoo}
+      P_CLIENT_SECRET: ${ODOO_P_CLIENT_SECRET:-odoo-dev-secret}
     volumes:
       - ./services/h_human/config/odoo.conf:/etc/odoo/odoo.conf:ro
       - ./services/h_human/addons:/mnt/extra-addons
@@ -274,6 +295,7 @@ networks:
     driver: bridge
 
 volumes:
+  attachment_data:
   postgres_data:
   odoo_data:
   superset_home:

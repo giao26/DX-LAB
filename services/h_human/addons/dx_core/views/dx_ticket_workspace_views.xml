@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="action_dx_ticket_workspace" model="ir.actions.act_url">
+    <field name="name">Ticket theo phạm vi</field>
+    <field name="url">/dx/tickets/workspace</field>
+    <field name="target">self</field>
+  </record>
+  <menuitem id="menu_dx_ticket_root" name="DX Tickets" sequence="30"/>
+  <menuitem id="menu_dx_ticket_workspace" name="Ticket theo phạm vi" parent="menu_dx_ticket_root" action="action_dx_ticket_workspace" sequence="10"/>
+</odoo>

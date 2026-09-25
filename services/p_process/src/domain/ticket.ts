@@ -1,3 +1,10 @@
+import {
+  AttachmentValidationError,
+  validateAttachment,
+  type AttachmentCreateInput,
+  type AttachmentRecord,
+} from './attachment.js';
+
 export const REQUEST_TYPES = ['Khiếu nại', 'Tư vấn', 'Bảo hành'] as const;
 
 export type RequestType = (typeof REQUEST_TYPES)[number];
@@ -8,9 +15,10 @@ export interface TicketCreateInput {
   customerEmail: string;
   provisionalType: RequestType;
   description: string;
+  attachment?: AttachmentCreateInput;
 }
 
-export interface TicketRecord extends TicketCreateInput {
+export interface TicketRecord extends Omit<TicketCreateInput, 'attachment'> {
   id: string;
   code: string;
   customerId: string;
@@ -20,6 +28,7 @@ export interface TicketRecord extends TicketCreateInput {
   receivedAt: string;
   createdAt: string;
   updatedAt: string;
+  attachment?: AttachmentRecord;
 }
 
 export type FieldErrors = Record<string, string[]>;
@@ -70,7 +79,15 @@ export function validateTicketCreateInput(value: unknown): TicketCreateInput {
     errors.description = ['Nội dung chi tiết phải có từ 10 đến 4000 ký tự.'];
   }
 
-  const allowed = new Set(['customerName', 'customerPhone', 'customerEmail', 'provisionalType', 'description']);
+  let attachment: AttachmentCreateInput | undefined;
+  try {
+    attachment = validateAttachment(body.attachment);
+  } catch (error) {
+    if (error instanceof AttachmentValidationError) errors.attachment = [error.message];
+    else throw error;
+  }
+
+  const allowed = new Set(['customerName', 'customerPhone', 'customerEmail', 'provisionalType', 'description', 'attachment']);
   const unknown = Object.keys(body).filter((key) => !allowed.has(key));
   if (unknown.length > 0) errors.body = ['Yêu cầu chứa trường không được hỗ trợ.'];
 
@@ -81,6 +98,7 @@ export function validateTicketCreateInput(value: unknown): TicketCreateInput {
     customerEmail,
     provisionalType: provisionalType as RequestType,
     description,
+    ...(attachment ? { attachment } : {}),
   };
 }
 
