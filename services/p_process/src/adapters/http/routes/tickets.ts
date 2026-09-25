@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { CreateTicketUseCase, IdempotencyConflictError, IdempotencyInProgressError } from '../../../application/create-ticket.js';
 import { AuthenticationError, IdentityProviderUnavailableError, type IdentityVerifier } from '../../../application/principal.js';
 import type { ReadTicketsUseCase } from '../../../application/read-tickets.js';
@@ -41,7 +42,12 @@ export const ticketRoutes: FastifyPluginAsync<TicketRouteOptions> = async (app, 
     const getter = options.getPublicTicketStatus ?? ((id: string) => options.createTicket.getPublicTicketStatus(id));
     const ticket = await getter(request.params.ticketId);
     if (!ticket) return reply.status(404).type('application/problem+json').send(notFound(request.url));
-    return reply.header('Cache-Control', 'no-store').send(ticket);
+    return reply.header('Cache-Control', 'no-store').send({
+      id: ticket.id,
+      code: ticket.code,
+      status: ticket.status,
+      confirmationEmailStatus: ticket.confirmationEmailStatus,
+    });
   });
 
   const authenticate = async (authorization: string | undefined, scope: string) => {
@@ -70,6 +76,7 @@ export const ticketRoutes: FastifyPluginAsync<TicketRouteOptions> = async (app, 
   };
 
   app.get<{ Querystring: { status?: string; limit?: string; offset?: string } }>('/api/v1/tickets', async (request, reply) => {
+    reply.header('Cache-Control', 'no-store');
     try {
       const principal = await authenticate(request.headers.authorization, 'tickets:read');
       if (request.query.status !== undefined && !['WAITING', 'IN_PROGRESS', 'CLOSED'].includes(request.query.status)) return reply.status(400).type('application/problem+json').send(problem(400, 'INVALID_QUERY', 'Bộ lọc không hợp lệ', 'Trạng thái không hợp lệ.', request.url));
@@ -81,33 +88,42 @@ export const ticketRoutes: FastifyPluginAsync<TicketRouteOptions> = async (app, 
         limit,
         offset,
       }, request.id);
-      return reply.header('Cache-Control', 'no-store').send(result);
+      return reply.send(result);
     } catch (error) {
       return sendAuthError(reply, error, request.url);
     }
   });
 
   app.get<{ Params: { ticketId: string } }>('/api/v1/tickets/:ticketId', async (request, reply) => {
+    reply.header('Cache-Control', 'no-store');
     try {
       const principal = await authenticate(request.headers.authorization, 'tickets:read');
       if (!UUID.test(request.params.ticketId)) return reply.status(404).type('application/problem+json').send(notFound(request.url));
       const ticket = await options.readTickets!.detail(principal, request.params.ticketId, request.id);
       if (!ticket) return reply.status(404).type('application/problem+json').send(notFound(request.url));
-      return reply.header('Cache-Control', 'no-store').send(ticket);
+      return reply.send(ticket);
     } catch (error) {
       return sendAuthError(reply, error, request.url);
     }
   });
 
   app.get<{ Params: { attachmentId: string } }>('/api/v1/attachments/:attachmentId/download', async (request, reply) => {
+    reply.header('Cache-Control', 'no-store');
     try {
       const principal = await authenticate(request.headers.authorization, 'tickets:download');
       if (!UUID.test(request.params.attachmentId)) return reply.status(404).type('application/problem+json').send(notFound(request.url));
       const attachment = await options.readTickets!.attachment(principal, request.params.attachmentId);
       if (!attachment || !options.attachmentStorage) return reply.status(404).type('application/problem+json').send(notFound(request.url));
       const content = await options.attachmentStorage.read(attachment.storageKey);
+      const actualChecksum = createHash('sha256').update(content).digest();
+      const expectedChecksum = Buffer.from(attachment.checksumSha256, 'hex');
+      if (content.byteLength !== attachment.sizeBytes || expectedChecksum.byteLength !== actualChecksum.byteLength
+        || !timingSafeEqual(actualChecksum, expectedChecksum)) {
+        app.log.error({ attachmentId: attachment.id }, 'Attachment integrity verification failed');
+        return reply.status(404).type('application/problem+json').send(notFound(request.url));
+      }
       await options.readTickets!.auditAttachmentDownload(principal, attachment.id, request.id);
-      return reply.header('Cache-Control', 'no-store').header('Content-Type', attachment.detectedMime)
+      return reply.header('Content-Type', attachment.detectedMime)
         .header('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(attachment.displayName)}`)
         .header('X-Content-Type-Options', 'nosniff').send(content);
     } catch (error) {

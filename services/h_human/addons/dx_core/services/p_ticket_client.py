@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
-"""HTTP client for P ticket reads. It never caches delegated tokens or PII."""
+"""HTTP client đọc ticket từ P; không cache token ủy quyền hoặc PII."""
 import json
-from urllib import parse, request
+from urllib import error as urlerror, parse, request
 
 
 class PTicketClientError(Exception):
-    pass
+    def __init__(self, message, status_code=502, reauth=False):
+        super().__init__(message)
+        self.status_code = status_code
+        self.reauth = reauth
 
 
 class PTicketClient:
@@ -31,31 +34,43 @@ class PTicketClient:
         try:
             with self._open(request.Request(self.token_url, data=payload), timeout=5) as response:
                 token = json.load(response).get('access_token')
+        except urlerror.HTTPError as error:
+            if error.code in (400, 401, 403):
+                raise PTicketClientError('Phiên đăng nhập đã hết hạn.', 401, True) from error
+            raise PTicketClientError('Dịch vụ xác thực tạm thời không khả dụng.', 503) from error
         except (KeyError, OSError, ValueError, TypeError) as error:
-            raise PTicketClientError('Không thể tạo phiên ủy quyền tới dịch vụ ticket.') from error
+            raise PTicketClientError('Không thể tạo phiên ủy quyền tới dịch vụ ticket.', 503) from error
         if not isinstance(token, str) or not token:
-            raise PTicketClientError('Phản hồi token exchange không hợp lệ.')
+            raise PTicketClientError('Phản hồi token exchange không hợp lệ.', 503)
         return token
 
     def _request(self, path, scopes, accept='application/json'):
         token = self._exchange_token(scopes)
-        req = request.Request(
-            self.api_base + path,
-            headers={'Authorization': 'Bearer ' + token, 'Accept': accept},
-        )
+        req = request.Request(self.api_base + path, headers={
+            'Authorization': 'Bearer ' + token,
+            'Accept': accept,
+        })
         try:
             return self._open(req, timeout=10)
+        except urlerror.HTTPError as error:
+            if error.code in (401, 403):
+                raise PTicketClientError('Phiên đăng nhập đã hết hạn hoặc quyền đã bị thu hồi.', 401, True) from error
+            if error.code == 404:
+                raise PTicketClientError('Ticket không tồn tại hoặc bạn không có quyền truy cập.', 404) from error
+            raise PTicketClientError('Dịch vụ ticket tạm thời không khả dụng.', 503) from error
         except OSError as error:
-            raise PTicketClientError('Không thể tải ticket trong phạm vi trách nhiệm.') from error
+            raise PTicketClientError('Không thể tải ticket trong phạm vi trách nhiệm.', 503) from error
 
     def get_json(self, path):
         try:
             with self._request(path, ('tickets:read',)) as response:
                 value = json.load(response)
-        except (ValueError, TypeError) as error:
-            raise PTicketClientError('Dịch vụ ticket trả JSON không hợp lệ.') from error
+        except PTicketClientError:
+            raise
+        except (OSError, ValueError, TypeError) as error:
+            raise PTicketClientError('Dịch vụ ticket trả JSON không hợp lệ.', 502) from error
         if not isinstance(value, dict):
-            raise PTicketClientError('Dịch vụ ticket trả JSON không hợp lệ.')
+            raise PTicketClientError('Dịch vụ ticket trả JSON không hợp lệ.', 502)
         return value
 
     def get_all_tickets(self):
@@ -69,23 +84,44 @@ class PTicketClient:
             if len(items) >= total:
                 return items
             if not page_items:
-                raise PTicketClientError('Phản trang ticket không tiến triển.')
+                raise PTicketClientError('Phân trang ticket không tiến triển.', 502)
             offset += len(page_items)
 
     def get_ticket_page(self, limit=50, offset=0):
         page = self.get_json('/api/v1/tickets?' + parse.urlencode({'limit': limit, 'offset': offset}))
         page_items = page.get('items')
         total = page.get('total')
-        if not isinstance(page_items, list) or not isinstance(total, int) or total < 0:
-            raise PTicketClientError('Phân trang ticket không hợp lệ.')
+        if not isinstance(page_items, list) or not isinstance(total, int) or isinstance(total, bool) or total < 0:
+            raise PTicketClientError('Phân trang ticket không hợp lệ.', 502)
         required = ('id', 'code', 'provisionalType', 'status', 'summary')
         for item in page_items:
             if not isinstance(item, dict) or any(not isinstance(item.get(key), str) for key in required):
-                raise PTicketClientError('Mục ticket trong phân trang không hợp lệ.')
+                raise PTicketClientError('Mục ticket trong phân trang không hợp lệ.', 502)
+            if item['status'] not in ('WAITING', 'IN_PROGRESS', 'CLOSED'):
+                raise PTicketClientError('Mục ticket trong phân trang không hợp lệ.', 502)
+            if 'slaDueAt' not in item or (item.get('slaDueAt') is not None and not isinstance(item.get('slaDueAt'), str)):
+                raise PTicketClientError('Mục ticket trong phân trang không hợp lệ.', 502)
         return {'items': page_items, 'total': total, 'limit': limit, 'offset': offset}
 
     def get_detail(self, ticket_uuid):
-        return self.get_json('/api/v1/tickets/' + parse.quote(ticket_uuid, safe=''))
+        detail = self.get_json('/api/v1/tickets/' + parse.quote(ticket_uuid, safe=''))
+        required_strings = ('id', 'code', 'provisionalType', 'status', 'summary', 'description', 'groupId')
+        if any(not isinstance(detail.get(key), str) for key in required_strings):
+            raise PTicketClientError('Chi tiết ticket không hợp lệ.', 502)
+        if detail['status'] not in ('WAITING', 'IN_PROGRESS', 'CLOSED') or not isinstance(detail.get('assignedToMe'), bool):
+            raise PTicketClientError('Chi tiết ticket không hợp lệ.', 502)
+        if 'slaDueAt' not in detail or (detail.get('slaDueAt') is not None and not isinstance(detail.get('slaDueAt'), str)):
+            raise PTicketClientError('Chi tiết ticket không hợp lệ.', 502)
+        customer = detail.get('customer')
+        if customer is not None and (not isinstance(customer, dict) or any(
+                not isinstance(customer.get(key), str) for key in ('name', 'phone', 'email'))):
+            raise PTicketClientError('Chi tiết ticket không hợp lệ.', 502)
+        attachment = detail.get('attachment')
+        if attachment is not None and (not isinstance(attachment, dict)
+                or any(not isinstance(attachment.get(key), str) for key in ('id', 'displayName', 'detectedMime', 'createdAt'))
+                or not isinstance(attachment.get('sizeBytes'), int) or isinstance(attachment.get('sizeBytes'), bool)):
+            raise PTicketClientError('Chi tiết ticket không hợp lệ.', 502)
+        return detail
 
     def download(self, attachment_uuid):
         try:
@@ -95,5 +131,7 @@ class PTicketClient:
                 'application/octet-stream',
             ) as response:
                 return response.read(), response.headers.get('Content-Type', 'application/octet-stream')
+        except PTicketClientError:
+            raise
         except OSError as error:
-            raise PTicketClientError('Không thể đọc nội dung tệp từ dịch vụ ticket.') from error
+            raise PTicketClientError('Không thể đọc nội dung tệp từ dịch vụ ticket.', 503) from error

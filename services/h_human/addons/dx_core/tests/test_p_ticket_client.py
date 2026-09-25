@@ -4,7 +4,7 @@ import io
 import json
 from pathlib import Path
 import unittest
-from urllib import parse
+from urllib import error as urlerror, parse
 import xml.etree.ElementTree as ET
 
 
@@ -44,8 +44,8 @@ def client(opener):
 
 class PTicketClientTests(unittest.TestCase):
     def test_paginates_all_items_and_exchanges_fresh_read_token_for_each_page(self):
-        first = {'id': '1', 'code': 'T-1', 'provisionalType': 'Tư vấn', 'status': 'WAITING', 'summary': 'Một'}
-        second = {'id': '2', 'code': 'T-2', 'provisionalType': 'Tư vấn', 'status': 'WAITING', 'summary': 'Hai'}
+        first = {'id': '1', 'code': 'T-1', 'provisionalType': 'Tư vấn', 'status': 'WAITING', 'slaDueAt': None, 'summary': 'Một'}
+        second = {'id': '2', 'code': 'T-2', 'provisionalType': 'Tư vấn', 'status': 'WAITING', 'slaDueAt': None, 'summary': 'Hai'}
         opener = SequenceOpener([
             ({'access_token': 'read-1'},), ({'items': [first], 'total': 2},),
             ({'access_token': 'read-2'},), ({'items': [second], 'total': 2},),
@@ -60,7 +60,11 @@ class PTicketClientTests(unittest.TestCase):
         self.assertIn('limit=100&offset=1', opener.requests[-1][0].full_url)
 
     def test_detail_payload_is_returned_instead_of_discarded(self):
-        detail = {'id': 'ticket-1', 'description': 'Chi tiết', 'customer': {'name': 'A'}}
+        detail = {
+            'id': 'ticket-1', 'code': 'T-1', 'provisionalType': 'Tư vấn', 'status': 'WAITING',
+            'slaDueAt': None, 'summary': 'Tóm tắt', 'description': 'Chi tiết', 'groupId': 'consulting',
+            'assignedToMe': True, 'customer': {'name': 'A', 'phone': '0912345678', 'email': 'a@example.test'},
+        }
         opener = SequenceOpener([({'access_token': 'read'},), (detail,)])
         self.assertEqual(client(opener).get_detail('ticket-1'), detail)
 
@@ -79,6 +83,20 @@ class PTicketClientTests(unittest.TestCase):
         opener = SequenceOpener([({'access_token': 'read'},), ({'items': ['broken'], 'total': 1},)])
         with self.assertRaises(MODULE.PTicketClientError):
             client(opener).get_ticket_page()
+
+    def test_rejects_malformed_detail_payload(self):
+        opener = SequenceOpener([({'access_token': 'read'},), ({'id': 'ticket-1', 'status': 'WAITING'},)])
+        with self.assertRaises(MODULE.PTicketClientError):
+            client(opener).get_detail('ticket-1')
+
+    def test_expired_subject_token_requests_reauthentication(self):
+        def expired(req, timeout):
+            raise urlerror.HTTPError(req.full_url, 400, 'expired', {}, None)
+
+        with self.assertRaises(MODULE.PTicketClientError) as raised:
+            client(expired).get_ticket_page()
+        self.assertEqual(raised.exception.status_code, 401)
+        self.assertTrue(raised.exception.reauth)
 
     def test_download_read_failure_is_a_structured_client_error(self):
         class BrokenResponse(FakeResponse):

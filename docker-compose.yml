@@ -69,7 +69,7 @@ services:
       SMTP_PORT: ${MAILPIT_SMTP_PORT:-1025}
       ATTACHMENT_STORAGE_PATH: /app/private-attachments
       TICKET_TYPE_GROUP_MAPPING: ${TICKET_TYPE_GROUP_MAPPING:-}
-      OIDC_ISSUER: ${OIDC_ISSUER:-http://localhost/realms/dxlab}
+      OIDC_ISSUER: ${OIDC_ISSUER:-https://localhost/realms/dxlab}
       OIDC_AUDIENCE: ${OIDC_AUDIENCE:-p-process}
       OIDC_INTROSPECTION_URL: ${OIDC_INTROSPECTION_URL:-http://keycloak:8080/realms/dxlab/protocol/openid-connect/token/introspect}
       OIDC_TOKEN_URL: ${OIDC_TOKEN_URL:-http://keycloak:8080/realms/dxlab/protocol/openid-connect/token}
@@ -149,7 +149,7 @@ services:
       KC_HTTP_ENABLED: "true"
       KC_HOSTNAME_STRICT: "false"
       KC_PROXY_HEADERS: xforwarded
-      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-http://localhost}
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-https://localhost}
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       KC_FEATURES: token-exchange-standard:v2
     volumes:

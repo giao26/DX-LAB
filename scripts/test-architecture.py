@@ -547,8 +547,8 @@ class ArchitectureChecker:
                 "Keycloak 26.7.4 must enable token-exchange-standard:v2 for the Odoo delegated-token flow",
             )
         for required_config in (
-            'OIDC_ISSUER: ${OIDC_ISSUER:-http://localhost/realms/dxlab}',
-            'KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-http://localhost}',
+            'OIDC_ISSUER: ${OIDC_ISSUER:-https://localhost/realms/dxlab}',
+            'KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-https://localhost}',
             'KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"',
         ):
             if required_config not in compose_content:
@@ -572,7 +572,7 @@ class ArchitectureChecker:
                 )
             clients = {client.get('clientId'): client for client in realm.get('clients', [])}
             login_client = clients.get('odoo-login', {})
-            if 'http://localhost/auth_oauth/signin' not in login_client.get('redirectUris', []):
+            if 'https://localhost/auth_oauth/signin' not in login_client.get('redirectUris', []):
                 self.log_error(
                     "MISSING_ODOO_LOGIN_CLIENT",
                     "Keycloak realm must provision the Odoo authorization-code redirect",
@@ -694,6 +694,8 @@ class ArchitectureChecker:
         # Check routing rules
         required_routes = [
             ('/web', 'odoo:8069'),
+            ('/dx/', 'Odoo ticket workspace'),
+            ('/auth_oauth/', 'Odoo OAuth callback'),
             ('/websocket', 'odoo:8069 websocket'),
             ('/api', 'p-process:3000'),
             ('/health', 'p-process:3000 /health'),
@@ -704,6 +706,36 @@ class ArchitectureChecker:
         for route_token, desc in required_routes:
             if route_token not in content:
                 self.log_error("MISSING_ROUTE", f"infra/caddy/Caddyfile missing route for {desc} ('{route_token}')")
+
+        dx_route = content.find('handle /dx/*')
+        callback_route = content.find('handle /auth_oauth/*')
+        keycloak_auth_route = content.find('handle /auth*')
+        if min(dx_route, callback_route, keycloak_auth_route) < 0 or not (
+                dx_route < keycloak_auth_route and callback_route < keycloak_auth_route):
+            self.log_error(
+                "INVALID_ROUTE_ORDER",
+                "Odoo /dx/* and /auth_oauth/* routes must precede Keycloak /auth*",
+            )
+        if 'handle /dx/* {\n        reverse_proxy odoo:8069' not in content.replace('\r\n', '\n'):
+            self.log_error("INVALID_ROUTE_TARGET", "Caddy /dx/* must proxy to Odoo")
+        if 'handle /auth_oauth/* {\n        reverse_proxy odoo:8069' not in content.replace('\r\n', '\n'):
+            self.log_error("INVALID_ROUTE_TARGET", "Caddy /auth_oauth/* must proxy to Odoo")
+
+        realm = (self.root_dir / 'infra' / 'keycloak' / 'dxlab-realm.json').read_text(encoding='utf-8')
+        provider = (self.root_dir / 'services' / 'h_human' / 'addons' / 'dx_core' / 'data' / 'oauth_provider.xml').read_text(encoding='utf-8')
+        env_example = (self.root_dir / '.env.example').read_text(encoding='utf-8')
+        compose = (self.root_dir / 'docker-compose.yml').read_text(encoding='utf-8')
+        canonical_tokens = [
+            ('OIDC_ISSUER=https://localhost/realms/dxlab', env_example),
+            ('KEYCLOAK_PUBLIC_URL=https://localhost', env_example),
+            ('https://localhost/auth_oauth/signin', realm),
+            ('https://localhost/realms/dxlab/protocol/openid-connect/auth', provider),
+            ('${OIDC_ISSUER:-https://localhost/realms/dxlab}', compose),
+            ('${KEYCLOAK_PUBLIC_URL:-https://localhost}', compose),
+        ]
+        for token, source in canonical_tokens:
+            if token not in source:
+                self.log_error("INCONSISTENT_PUBLIC_OIDC_URL", f"Missing canonical HTTPS OIDC value: {token}")
 
         # Check for forbidden wildcard CORS
         if re.search(r'Access-Control-Allow-Origin["\s]+[*]', content, re.IGNORECASE):

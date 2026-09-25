@@ -3,7 +3,7 @@
   <record id="oauth_provider_keycloak" model="auth.oauth.provider">
     <field name="name">DX-LAB Keycloak</field>
     <field name="client_id">odoo-login</field>
-    <field name="auth_endpoint">http://localhost/realms/dxlab/protocol/openid-connect/auth</field>
+    <field name="auth_endpoint">https://localhost/realms/dxlab/protocol/openid-connect/auth</field>
     <field name="scope">openid tickets:read tickets:download</field>
     <field name="validation_endpoint">http://keycloak:8080/realms/dxlab/protocol/openid-connect/userinfo</field>
     <field name="data_endpoint">http://keycloak:8080/realms/dxlab/protocol/openid-connect/userinfo</field>

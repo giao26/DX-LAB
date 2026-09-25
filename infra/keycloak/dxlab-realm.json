@@ -62,8 +62,8 @@
       "publicClient": true,
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": true,
-      "redirectUris": ["http://localhost/*"],
-      "webOrigins": ["http://localhost"],
+      "redirectUris": ["https://localhost/*"],
+      "webOrigins": ["https://localhost"],
       "defaultClientScopes": ["basic", "tickets:read"],
       "optionalClientScopes": ["tickets:download"],
       "protocolMappers": [
@@ -90,8 +90,8 @@
       "standardFlowEnabled": true,
       "implicitFlowEnabled": true,
       "directAccessGrantsEnabled": false,
-      "redirectUris": ["http://localhost/auth_oauth/signin"],
-      "webOrigins": ["http://localhost"],
+      "redirectUris": ["https://localhost/auth_oauth/signin"],
+      "webOrigins": ["https://localhost"],
       "defaultClientScopes": ["basic", "tickets:read"],
       "optionalClientScopes": ["tickets:download"],
       "protocolMappers": [
@@ -140,7 +140,7 @@
       "username": "service-account-p-process",
       "enabled": true,
       "serviceAccountClientId": "p-process",
-      "clientRoles": { "realm-management": ["view-users", "query-groups", "view-realm"] }
+      "clientRoles": { "realm-management": ["view-users", "query-groups", "query-clients", "view-realm"] }
     },
     {
       "id": "11111111-1111-4111-8111-111111111111",

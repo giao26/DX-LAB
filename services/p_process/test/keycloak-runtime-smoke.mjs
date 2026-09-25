@@ -6,7 +6,7 @@ const realm = `${keycloak}/realms/dxlab`;
 const tokenUrl = `${realm}/protocol/openid-connect/token`;
 
 const odooLogin = await fetch(`${realm}/protocol/openid-connect/auth?${new URLSearchParams({
-  client_id: 'odoo-login', redirect_uri: 'http://localhost/auth_oauth/signin',
+  client_id: 'odoo-login', redirect_uri: 'https://localhost/auth_oauth/signin',
   response_type: 'token', scope: 'openid tickets:read tickets:download',
 })}`);
 assert.equal(odooLogin.status, 200, `Odoo login authorization endpoint returned ${odooLogin.status}`);
@@ -36,11 +36,18 @@ assert.equal(typeof subject.access_token, 'string');
 const pBasic = `Basic ${Buffer.from('p-process:p-process-dev-secret').toString('base64')}`;
 const introspection = await form(`${tokenUrl}/introspect`, { token: subject.access_token }, pBasic);
 assert.equal(introspection.active, true);
-assert.equal(introspection.iss, 'http://localhost/realms/dxlab');
+assert.equal(introspection.iss, 'https://localhost/realms/dxlab');
 assert.equal(introspection.sub, '11111111-1111-4111-8111-111111111111');
 assert.ok(Array.isArray(introspection.aud) ? introspection.aud.includes('odoo') : introspection.aud === 'odoo');
 
 const service = await form(tokenUrl, { grant_type: 'client_credentials' }, pBasic);
+const clientsResponse = await fetch(`${keycloak}/admin/realms/dxlab/clients?clientId=odoo-login`, {
+  headers: { Authorization: `Bearer ${service.access_token}`, Accept: 'application/json' },
+});
+assert.equal(clientsResponse.ok, true);
+const loginClients = await clientsResponse.json();
+assert.equal(loginClients.length, 1);
+assert.ok(loginClients[0].redirectUris.includes('https://localhost/auth_oauth/signin'));
 for (const suffix of ['', '/role-mappings/realm/composite', '/groups']) {
   const response = await fetch(`${keycloak}/admin/realms/dxlab/users/${introspection.sub}${suffix}`, {
     headers: { Authorization: `Bearer ${service.access_token}`, Accept: 'application/json' },

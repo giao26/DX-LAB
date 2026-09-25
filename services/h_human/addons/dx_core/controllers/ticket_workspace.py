@@ -44,7 +44,15 @@ a:focus{{outline:3px solid #ffbf47;outline-offset:2px}}.status{{font-weight:700}
         ])
 
     def _error(self, error):
-        return self._page('Không thể tải ticket', '<h1>Không thể tải ticket</h1><p>%s</p>' % _text(error), 502)
+        status = error.status_code if isinstance(error, PTicketClientError) else 502
+        action = ''
+        if isinstance(error, PTicketClientError) and error.reauth:
+            action = '<p><a class="button" href="/web/login">Đăng nhập lại</a></p>'
+        return self._page(
+            'Không thể tải ticket',
+            '<h1>Không thể tải ticket</h1><p>%s</p>%s' % (_text(error), action),
+            status,
+        )
 
     @http.route('/dx/tickets/workspace', type='http', auth='user', methods=['GET'])
     def list_tickets(self, **_kwargs):

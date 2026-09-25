@@ -31,7 +31,7 @@ function mockIdp(t, claims = validClaims, overrides = {}) {
     if (String(url) === config.introspectionUrl) return new Response(JSON.stringify(claims), { status: 200 });
     if (String(url) === config.tokenUrl) return new Response(JSON.stringify({ access_token: 'service-token' }), { status: 200 });
     if (String(url).endsWith('/role-mappings/realm/composite')) return new Response(JSON.stringify(overrides.roles ?? [{ name: 'employee' }]), { status: 200 });
-    if (String(url).endsWith('/groups')) return new Response(JSON.stringify(overrides.groups ?? [{ path: '/warranty' }]), { status: 200 });
+    if (String(url).includes('/groups?')) return new Response(JSON.stringify(overrides.groups ?? [{ path: '/warranty' }]), { status: 200 });
     if (String(url).endsWith('/users/staff-1')) return new Response(JSON.stringify(overrides.user ?? { enabled: true }), { status: 200 });
     throw new Error(`unexpected URL ${url}`);
   };
@@ -87,7 +87,7 @@ test('entitlement bị thu hồi được kiểm tra lại trên request kế ti
     if (String(url) === config.introspectionUrl) return new Response(JSON.stringify(validClaims));
     if (String(url) === config.tokenUrl) return new Response(JSON.stringify({ access_token: 'service-token' }));
     if (String(url).endsWith('/role-mappings/realm/composite')) return new Response(JSON.stringify([{ name: 'employee' }]));
-    if (String(url).endsWith('/groups')) return new Response(JSON.stringify([{ path: '/warranty' }]));
+    if (String(url).includes('/groups?')) return new Response(JSON.stringify([{ path: '/warranty' }]));
     return new Response(JSON.stringify({ enabled }));
   };
   t.after(() => { globalThis.fetch = originalFetch; });
@@ -106,7 +106,7 @@ test('role và group được lấy lại trên mỗi request, không dùng enti
     if (String(url) === config.introspectionUrl) return new Response(JSON.stringify(validClaims));
     if (String(url) === config.tokenUrl) return new Response(JSON.stringify({ access_token: 'service-token' }));
     if (String(url).endsWith('/role-mappings/realm/composite')) return new Response(JSON.stringify(roles));
-    if (String(url).endsWith('/groups')) return new Response(JSON.stringify(groups));
+    if (String(url).includes('/groups?')) return new Response(JSON.stringify(groups));
     return new Response(JSON.stringify({ enabled: true }));
   };
   t.after(() => { globalThis.fetch = originalFetch; });
@@ -127,6 +127,30 @@ test('mọi phản hồi introspection không thành công đều là dependency
     () => new OidcIdentityVerifier(config).verify('Bearer opaque', 'tickets:read'),
     IdentityProviderUnavailableError,
   );
+});
+
+test('Keycloak group lookup follows every page', async (t) => {
+  const originalFetch = globalThis.fetch;
+  const groupCalls = [];
+  globalThis.fetch = async (url) => {
+    const value = String(url);
+    if (value === config.introspectionUrl) return new Response(JSON.stringify(validClaims));
+    if (value === config.tokenUrl) return new Response(JSON.stringify({ access_token: 'service-token' }));
+    if (value.endsWith('/role-mappings/realm/composite')) return new Response(JSON.stringify([{ name: 'employee' }]));
+    if (value.includes('/groups?')) {
+      groupCalls.push(value);
+      const first = Number(new URL(value).searchParams.get('first'));
+      return new Response(JSON.stringify(first === 0
+        ? Array.from({ length: 100 }, (_, index) => ({ path: `/group-${index}` }))
+        : [{ path: '/warranty' }]));
+    }
+    return new Response(JSON.stringify({ enabled: true }));
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+  const principal = await new OidcIdentityVerifier(config).verify('Bearer opaque', 'tickets:read');
+  assert.equal(groupCalls.length, 2);
+  assert.ok(groupCalls[1].includes('first=100'));
+  assert.ok(principal.groupIds.includes('warranty'));
 });
 
 test('timeout và JSON lỗi của IdP trả lỗi unavailable có cấu trúc', async (t) => {

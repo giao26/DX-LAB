@@ -27,6 +27,14 @@
     handle /websocket* {
         reverse_proxy odoo:8069
     }
+    # Workspace và callback OAuth thuộc Odoo. Hai matcher này phải đứng
+    # trước /auth* của Keycloak để callback không bị nuốt nhầm.
+    handle /dx/* {
+        reverse_proxy odoo:8069
+    }
+    handle /auth_oauth/* {
+        reverse_proxy odoo:8069
+    }
 
     # Tầng P: Process Core REST API & Health Endpoint (AD-1, AD-11)
     handle /api/* {

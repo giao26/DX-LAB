@@ -110,16 +110,28 @@ export class OidcIdentityVerifier implements IdentityVerifier {
     }
     const adminHeaders = { Authorization: `Bearer ${serviceTokenBody.access_token}`, Accept: 'application/json' };
     const userBase = `${this.config.adminBaseUrl}/users/${encodeURIComponent(claims.sub)}`;
-    const [userResponse, rolesResponse, groupsResponse] = await Promise.all([
+    const [userResponse, rolesResponse] = await Promise.all([
       fetchIdp(userBase, { headers: adminHeaders }),
       fetchIdp(`${userBase}/role-mappings/realm/composite`, { headers: adminHeaders }),
-      fetchIdp(`${userBase}/groups`, { headers: adminHeaders }),
     ]);
     if (userResponse.status === 404) throw new AuthenticationError('Quyền đã bị thu hồi.', 403);
-    if (!userResponse.ok || !rolesResponse.ok || !groupsResponse.ok) throw new IdentityProviderUnavailableError();
-    const [user, roleValues, groupValues] = await Promise.all([
-      jsonIdp(userResponse), jsonIdp(rolesResponse), jsonIdp(groupsResponse),
-    ]) as [{ enabled?: unknown }, unknown, unknown];
+    if (!userResponse.ok || !rolesResponse.ok) throw new IdentityProviderUnavailableError();
+    const [user, roleValues] = await Promise.all([
+      jsonIdp(userResponse), jsonIdp(rolesResponse),
+    ]) as [{ enabled?: unknown }, unknown];
+    const groupValues: unknown[] = [];
+    const groupPageSize = 100;
+    for (let first = 0; ; first += groupPageSize) {
+      const groupsUrl = new URL(`${userBase}/groups`);
+      groupsUrl.searchParams.set('first', String(first));
+      groupsUrl.searchParams.set('max', String(groupPageSize));
+      const groupsResponse = await fetchIdp(groupsUrl.toString(), { headers: adminHeaders });
+      if (!groupsResponse.ok) throw new IdentityProviderUnavailableError();
+      const page = await jsonIdp(groupsResponse);
+      if (!Array.isArray(page)) throw new IdentityProviderUnavailableError();
+      groupValues.push(...page);
+      if (page.length < groupPageSize) break;
+    }
     if (user.enabled !== true) throw new AuthenticationError('Quyền đã bị thu hồi.', 403);
     const roles = Array.isArray(roleValues) ? roleValues.flatMap((value) => {
       const name = value && typeof value === 'object' ? (value as { name?: unknown }).name : undefined;

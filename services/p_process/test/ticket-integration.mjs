@@ -155,6 +155,14 @@ try {
   assert.ok(inGroup.rows.some((row) => row.id === ticket.id));
   const outside = await readStore.listScoped({ groupIds: ['warranty'], organizationWide: false, limit: 20, offset: 0 });
   assert.equal(outside.rows.some((row) => row.id === ticket.id), false);
+  const waitingOnly = await readStore.listScoped({ groupIds: ['consulting'], organizationWide: false, status: 'WAITING', limit: 100, offset: 0 });
+  assert.ok(waitingOnly.rows.some((row) => row.id === ticket.id));
+  assert.equal(waitingOnly.rows.every((row) => row.status === 'WAITING'), true);
+  assert.equal(waitingOnly.total, waitingOnly.rows.length);
+  const closedOnly = await readStore.listScoped({ groupIds: ['consulting'], organizationWide: false, status: 'CLOSED', limit: 100, offset: 0 });
+  assert.equal(closedOnly.rows.some((row) => row.id === ticket.id), false);
+  assert.equal(closedOnly.rows.every((row) => row.status === 'CLOSED'), true);
+  assert.equal(closedOnly.total, closedOnly.rows.length);
   const firstPage = await readStore.listScoped({ groupIds: ['consulting'], organizationWide: false, limit: 1, offset: 0 });
   const secondPage = await readStore.listScoped({ groupIds: ['consulting'], organizationWide: false, limit: 1, offset: 1 });
   assert.equal(firstPage.total, secondPage.total);

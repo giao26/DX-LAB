@@ -4,7 +4,7 @@ type: 'feature'
 created: '2026-09-25'
 status: 'in-progress'
 route: 'dispatch'
-review_loop_iteration: 2
+review_loop_iteration: 3
 baseline_commit: '66afc6990539b42a99ca6153037b415f0b1fe78d'
 context:
   - _bmad-output/implementation-artifacts/epic-1-context.md
@@ -52,12 +52,12 @@ context:
 
 **Execution:**
 - [x] `services/p_process/src/application/` — tạo principal, ports, policy và DTO redaction; list summary phải loại PII thay vì cắt mô tả thô.
-- [x] `services/p_process/src/adapters/http/`, `src/index.ts` — bảo vệ list/detail/download, authenticate nhất quán, audit đúng outcome và xử lý IdP unavailable có cấu trúc; giữ POST anonymous.
+- [ ] `services/p_process/src/adapters/http/`, `src/index.ts` — bảo vệ list/detail/download, authenticate nhất quán, audit đúng outcome và xử lý IdP unavailable có cấu trúc; public status phải tự project đúng bốn trường; mọi protected response `no-store`; download xác minh size/checksum trước khi trả; giữ POST anonymous.
 - [x] `services/p_process/src/adapters/postgres/`, `services/d_data/postgres/init/01_init_schema.sql` — migration additive, query scoped, audit list và fail-fast mapping; có chiến lược migration rõ cho ticket cũ.
 - [x] `services/p_process/src/adapters/storage/` — đọc/ghi tệp an toàn, dọn partial write và chỉ audit download sau khi đọc thành công.
-- [x] `infra/keycloak/`, `contracts/openapi/p-api.yaml`, config — dùng một canonical issuer hợp lệ cả qua Caddy và internal backchannel; provision realm/client/role/group/scope/token-exchange cùng đường đăng nhập Odoo chạy được trên stock Keycloak; contract phải mô tả 503 và MIME download thực tế.
-- [x] `apps/web/`, `services/h_human/addons/dx_core/` — validate public status; Odoo phân trang, lấy detail/tải attachment theo scope tối thiểu nhưng không persist projection/detail nhạy cảm: mỗi lần render/mở/tải phải kiểm quyền hiện hành ở P, link/tab cũ bị từ chối sau revoke.
-- [x] Tests/CI — phủ từng claim OIDC và refresh role/group, intake mapping, SQL lead/org-wide/pagination thật, response header download, real download, rollback cleanup, upgrade migrations và Odoo adapter; CI phải import realm trên stock Keycloak và chạy login/token-exchange/introspection/Admin API/protected-read smoke; giữ regression Story 1.3–1.5.
+- [ ] `infra/keycloak/`, `infra/caddy/`, `contracts/openapi/p-api.yaml`, config — dùng canonical HTTPS issuer/callback nhất quán; Caddy phải route `/dx/*` và `/auth_oauth/*` sang Odoo trước matcher Keycloak; provision login/token-exchange stock Keycloak và contract 503/MIME chính xác.
+- [ ] `apps/web/`, `services/h_human/addons/dx_core/` — validate public status; Odoo on-demand phải validate list/detail, giữ status an toàn cho 404/reauth, có lối đăng nhập lại khi subject token hết hạn, không persist projection/detail nhạy cảm và gọi lại P ở mỗi list/detail/download.
+- [ ] Tests/CI — thêm exact public-status keys, SQL status filter, Keycloak group pagination, rollback-cleanup khi ROLLBACK lỗi, download integrity/no-store, controller Odoo executable harness và architecture assertions cho ingress/callback order; runtime smoke giữ login/token-exchange/introspection/Admin API/protected-read; giữ regression Story 1.3–1.5.
 
 **Acceptance Criteria:**
 - Given Web/Odoo gọi P, when token hợp lệ, then P áp dụng role–group–assignment trên từng tài nguyên.
@@ -80,6 +80,7 @@ context:
 - Review loop 1 — Review phát hiện auth config phụ thuộc endpoint Keycloak không tồn tại, list summary có thể lộ PII, Odoo bỏ detail/download, audit outcome và coverage adapter thật còn thiếu. Đã bổ sung realm import chạy được, redaction riêng, audit/list/download semantics, Odoo pagination/detail/download và verification migration/SQL/storage/Odoo. Tránh trạng thái demo không thể đăng nhập hoặc UI chỉ giả vờ mở detail. KEEP: SQL scope deny-by-default, 404 chống enumeration, polling công khai tối thiểu, owner rule Odoo, allowlist calling client và toàn bộ regression Story 1.3–1.5.
 - Review loop 1 verification — Chạy stock Keycloak phát hiện và sửa `token-exchange-standard:v1` không hợp lệ trên 26.7.4 cùng realm thiếu `sub` mapper; đã thêm kiểm tra kiến trúc hồi quy. E6 được xử lý bằng partial-write cleanup và rollback cleanup có test.
 - Review loop 2 — Review phát hiện transient Odoo vẫn persist dữ liệu và cho tab cũ đọc sau revoke, realm chưa provision đường login Odoo, issuer public/internal chưa thống nhất và CI chưa chạy Keycloak runtime. Đã yêu cầu projection/detail Odoo on-demand không persist, login/token-exchange runnable, canonical issuer qua ingress/backchannel và smoke test stock Keycloak trong CI. Tránh trạng thái unit test xanh nhưng UI giữ dữ liệu sau revoke hoặc demo chỉ chạy khi lấy token thủ công. KEEP: SQL scope/redaction/404 deny-by-default, stock Admin API entitlement mỗi request, safe list summary, audit thành công sau storage read, cleanup file, BFF shape validation, OpenAPI detail đã sửa, Odoo pagination/detail/download semantics và toàn bộ test đang xanh.
+- Review loop 3 — Review chứng minh workspace `/dx/*` rơi vào Next.js và callback `/auth_oauth/*` bị `/auth*` gửi sang Keycloak; smoke chỉ mở login page nên không bắt lỗi ingress. Đã yêu cầu route order Caddy, canonical HTTPS/callback nhất quán, Odoo reauth/status/DTO validation, Keycloak group pagination và các verification gap cụ thể. Tránh demo login thành công ở Keycloak nhưng không thể quay về/mở workspace Odoo. KEEP: on-demand Odoo không persist, stock realm/token exchange/Admin API đã chạy thật, SQL scope/redaction/404, safe audit/attachment cleanup, OpenAPI và toàn bộ regression đang xanh.
 
 ## Review Triage Log
 
@@ -151,6 +152,32 @@ context:
 - R2-BH15 — `medium`, route `patch`: lỗi socket trong `response.read()` download nằm ngoài catch và thành Odoo 500.
 - R2-BH16 — `low`, route `patch`: trùng R2-EC7 về stale transient ID trả 500.
 - R2-BH17 — `false`: PII được lấy trong cùng process P rồi redaction trước API boundary; không có caller trái phép nhận DTO nhạy cảm.
+- R3-VG1 — `medium`, route `patch`: public-status route forward getter verbatim và test không assert exact keys; cần project bốn trường tại P và khóa PII extras.
+- R3-VG2 — `medium`, route `patch`: SQL status filter chưa có test real-store cho cả items và total.
+- R3-VG3 — `high`, route `bad_spec`: test Odoo chỉ đọc source/XML, không execute list/detail/download controller; sai route/render/header vẫn xanh.
+- R3-BH1 — `high`, route `bad_spec`: Caddy không route `/dx/*` sang Odoo nên workspace rơi vào Next.js.
+- R3-BH2 — `high`, route `bad_spec`: `/auth_oauth/signin` bị matcher `/auth*` gửi sang Keycloak thay vì callback Odoo.
+- R3-BH3 — `medium`, route `bad_spec`: realm/provider hardcode HTTP localhost trong khi public hostname được quảng bá configurable; issuer/redirect có thể lệch.
+- R3-BH4 — `medium`, route `bad_spec`: implicit token hết hạn nhưng Odoo session không có refresh/reauth path, khiến workspace mất truy cập cho tới logout thủ công.
+- R3-BH5 — `medium`, route `bad_spec`: Odoo đổi mọi 401/403/404/outage thành 502, làm stale/revoked tab bị báo sai là lỗi hạ tầng.
+- R3-BH6 — `medium`, route `patch`: detail JSON không validate schema nên malformed 200 có thể render ticket trống hoặc link download hỏng.
+- R3-BH7 — `carried false`: cùng claim R2-EC9/R2-BH2; frozen matrix không yêu cầu audit denied attempts.
+- R3-BH8 — `carried defer (medium, unverified)`: cùng vị trí/claim R2-BH14 về offset/load; cần volume/latency load test.
+- R3-BH9 — `carried false`: cùng vị trí/claim E9/R2-EC5 về page/count snapshot.
+- R3-BH10 — `medium`, route `patch`: download không đối chiếu bytes với size/checksum đã lưu nên corruption/tamper không được phát hiện.
+- R3-BH11 — `carried defer (medium)`: cùng vị trí/claim E7; process crash hoặc xóa metadata có thể để orphan file, cần lifecycle reconciliation riêng.
+- R3-BH12 — `low`, route `patch`: protected auth/404 errors thiếu `Cache-Control: no-store`; thêm header là correction trực tiếp.
+- R3-BH13 — `carried defer (medium)`: cùng vị trí/claim R2-EC1/R2-BH8 về JSON base64 cap Story 1.5.
+- R3-BH14 — `medium`, route `defer`: polling interval overlap là hành vi Web polling có trước scope Story 1.6; cần sửa riêng để abort/serialize request.
+- R3-BH15 — `false`: CI upgrade database có mục tiêu kiểm migrations apply tuần tự/schema; behavior integration đã chạy trên schema cùng version, không claim phải dùng chính DB upgrade.
+- R3-BH16 — `high`, route `bad_spec`: login smoke chỉ nhận HTML Keycloak, không bắt callback/workspace ingress nên hai lỗi route vẫn qua CI.
+- R3-EC1 — `carried defer (medium)`: cùng vị trí/claim E1 về zero-byte multipart Story 1.5.
+- R3-EC2 — `medium`, route `patch`: `json.load` có thể ném OSError sau open và thoát khỏi lỗi client có cấu trúc.
+- R3-EC3 — `medium`, route `patch`: ROLLBACK ném lỗi trước cleanup file, vừa orphan file vừa che lỗi DB ban đầu.
+- R3-EC4 — `medium`, route `bad_spec`: Keycloak user groups chỉ lấy page mặc định; membership ở page sau bị bỏ và từ chối sai.
+- R3-EC5 — `carried false`: cùng vị trí/claim E9 về count snapshot.
+- R3-EC6 — `carried false`: cùng claim R2-EC9 về denied audit.
+- R3-EC7 — `high`, route `bad_spec`: trùng R3-BH16; login smoke không hoàn tất callback/session/workspace.
 
 ## Design Notes
 

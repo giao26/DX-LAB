@@ -235,7 +235,11 @@ export class PostgresTicketIntakeStore implements TicketIntakeStore {
       persistedStorageKey = null;
       return { ticket, replayed: false };
     } catch (error) {
-      await client.query('ROLLBACK');
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // Continue cleanup and preserve the original transaction error.
+      }
       if (persistedStorageKey) {
         try {
           await this.attachmentStorage.remove(persistedStorageKey);

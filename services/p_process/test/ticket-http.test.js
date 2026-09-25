@@ -140,9 +140,12 @@ test('GET public status trả dữ liệu polling tối thiểu', async (t) => {
   const res = await app.inject({ method: 'GET', url: `/api/v1/public/tickets/${mockTicket.id}/status` });
   assert.equal(res.statusCode, 200);
   const data = res.json();
-  assert.equal(data.id, mockTicket.id);
-  assert.equal(data.code, mockTicket.code);
-  assert.equal(data.confirmationEmailStatus, 'SENT');
+  assert.deepEqual(data, {
+    id: mockTicket.id,
+    code: mockTicket.code,
+    status: mockTicket.status,
+    confirmationEmailStatus: 'SENT',
+  });
 });
 
 test('GET public status trả 404 khi không tìm thấy ticket', async (t) => {
@@ -179,7 +182,7 @@ const scopedRow = {
   customerPhone: '0912345678', customerEmail: 'private@example.com',
   receivedAt: '2026-09-25T00:00:00.000Z', updatedAt: '2026-09-25T00:00:00.000Z',
   attachment: { id: '8083057e-29ad-41e7-903f-2ff604d70680', storageKey: '12345678-1234-4234-8234-123456789099',
-    displayName: 'bang-chung.pdf', sizeBytes: 4, detectedMime: 'application/pdf', checksumSha256: 'a'.repeat(64), createdAt: '2026-09-25T00:00:00.000Z' },
+    displayName: 'bang-chung.pdf', sizeBytes: 4, detectedMime: 'application/pdf', checksumSha256: '315d429b7714cedb6ad04ac31240145257692630457f3c88253c5beceac76027', createdAt: '2026-09-25T00:00:00.000Z' },
 };
 
 function protectedApp({ principal, row = scopedRow, revoked = false, verifierError = null, readError = null }) {
@@ -256,6 +259,7 @@ test('lead cùng nhóm xem detail đã che; ngoài scope và không tồn tại 
   const denied = await outsider.app.inject({ method: 'GET', url: `/api/v1/tickets/${scopedRow.id}`, headers: { authorization: 'Bearer valid' } });
   const missing = await outsider.app.inject({ method: 'GET', url: '/api/v1/tickets/00000000-0000-4000-8000-000000000000', headers: { authorization: 'Bearer valid' } });
   assert.equal(denied.statusCode, 404);
+  assert.equal(denied.headers['cache-control'], 'no-store');
   assert.deepEqual(
     { ...denied.json(), instance: '<resource>' },
     { ...missing.json(), instance: '<resource>' },
@@ -268,6 +272,7 @@ test('token thiếu/sai scope và entitlement thu hồi bị từ chối', async
   t.after(() => active.app.close());
   assert.equal((await active.app.inject({ method: 'GET', url: '/api/v1/tickets' })).statusCode, 401);
   assert.equal((await active.app.inject({ method: 'GET', url: '/api/v1/tickets' })).headers['www-authenticate'], 'Bearer');
+  assert.equal((await active.app.inject({ method: 'GET', url: '/api/v1/tickets' })).headers['cache-control'], 'no-store');
   assert.equal((await active.app.inject({ method: 'GET', url: `/api/v1/attachments/${scopedRow.attachment.id}/download`, headers: { authorization: 'Bearer valid' } })).statusCode, 403);
   const revoked = protectedApp({ principal, revoked: true });
   t.after(() => revoked.app.close());
@@ -308,6 +313,22 @@ test('download không audit thành công khi storage read thất bại', async (
   t.after(() => app.close());
   const response = await app.inject({ method: 'GET', url: `/api/v1/attachments/${scopedRow.attachment.id}/download`, headers: { authorization: 'Bearer valid' } });
   assert.equal(response.statusCode, 404);
+  assert.deepEqual(audits, []);
+});
+
+test('download rejects corrupt bytes before success audit', async (t) => {
+  const corruptRow = {
+    ...scopedRow,
+    attachment: { ...scopedRow.attachment, checksumSha256: '0'.repeat(64) },
+  };
+  const { app, audits } = protectedApp({
+    row: corruptRow,
+    principal: { sub: 'staff-1', clientId: 'odoo', roles: ['employee'], groupIds: ['warranty'], scopes: ['tickets:read', 'tickets:download'] },
+  });
+  t.after(() => app.close());
+  const response = await app.inject({ method: 'GET', url: `/api/v1/attachments/${scopedRow.attachment.id}/download`, headers: { authorization: 'Bearer valid' } });
+  assert.equal(response.statusCode, 404);
+  assert.equal(response.headers['cache-control'], 'no-store');
   assert.deepEqual(audits, []);
 });
 
