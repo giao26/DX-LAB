@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-19-2026 15:15
-last_updated: 09-25-2026 23:25
+last_updated: 09-25-2026 23:28
 project: DX-LAB
 project_key: NOKEY
 tracking_system: file-system
@@ -43,10 +43,7 @@ development_status:
   1-5-khách-gửi-tệp-đính-kèm-riêng-tư: backlog
   1-6-người-dùng-nội-bộ-xem-ticket-đúng-phạm-vi-trách-nhiệm: done
   1-7-hệ-thống-phân-công-công-bằng-và-thông-báo-qua-odoo: backlog
-  1-8-nhân-viên-xác-nhận-phân-loại-do-ai-đề-xuất: backlog (delete)
   1-9-nhân-viên-xử-lý-ticket-theo-quy-trình-và-sla-người-phụ-trách-đóng-ticket: backlog
-  1-10-khách-gửi-csat: backlog (delete)
-  1-11-trưởng-nhóm-rà-soát-phản-hồi-csat-thấp: backlog (delete)
   epic-1-retrospective: optional
 
   epic-2: backlog
@@ -58,16 +55,13 @@ development_status:
   epic-3: backlog
   3-1-người-quản-lý-xem-bộ-chỉ-số-thống-nhất-theo-đúng-phạm-vi: backlog
   3-2-giám-đốc-theo-dõi-và-khoan-sâu-trên-dashboard-d: backlog
-  3-3-dashboard-xuất-dữ-liệu-sao-lưu-mỗi-ngày: backlog (new)
-  3-3-người-quản-lý-đối-chiếu-bản-chốt-ngày-và-dữ-liệu-nguồn: backlog (delete)
+  3-3-dashboard-xuất-dữ-liệu-sao-lưu-mỗi-ngày: backlog
   epic-3-retrospective: optional
 
   epic-4: backlog
   4-1-giám-đốc-nhận-cảnh-báo-điểm-nghẽn-có-bằng-chứng: backlog
   4-2-giám-đốc-xem-khuyến-nghị-ai-và-dữ-liệu-dẫn-chứng: backlog
   4-3-giám-đốc-quyết-định-và-yêu-cầu-ai-soạn-nháp-sop-và-công-bố-sop-trong-odoo: backlog
-  4-4-người-duyệt-tri-thức-rà-soát: backlog (delete)
-  4-5-giám-đốc-đánh-giá-kết-quả-cải-tiến-trước-và-sau-sop: backlog (delete)
   epic-4-retrospective: optional
 
   epic-5: backlog
