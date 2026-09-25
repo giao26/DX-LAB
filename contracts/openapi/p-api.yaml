@@ -207,6 +207,9 @@ paths:
               schema: { $ref: '#/components/schemas/PublicTicketStatus' }
         '404':
           description: Không tìm thấy
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
 
   /api/v1/attachments/{attachmentId}/download:
     get:
@@ -240,6 +243,9 @@ paths:
               schema: { $ref: '#/components/schemas/ProblemDetails' }
         '404':
           description: Không tồn tại hoặc ngoài phạm vi
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
         '503':
           description: Nhà cung cấp danh tính tạm thời không sẵn sàng
           content:

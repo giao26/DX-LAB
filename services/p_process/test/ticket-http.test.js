@@ -264,6 +264,11 @@ test('lead cùng nhóm xem detail đã che; ngoài scope và không tồn tại 
     { ...denied.json(), instance: '<resource>' },
     { ...missing.json(), instance: '<resource>' },
   );
+
+  const unassigned = protectedApp({ principal: { sub: 'staff-unassigned', clientId: 'web', roles: ['employee'], groupIds: ['warranty'], scopes: ['tickets:download'] } });
+  t.after(() => unassigned.app.close());
+  const unassignedDownload = await unassigned.app.inject({ method: 'GET', url: `/api/v1/attachments/${scopedRow.attachment.id}/download`, headers: { authorization: 'Bearer valid' } });
+  assert.equal(unassignedDownload.statusCode, 404);
 });
 
 test('token thiếu/sai scope và entitlement thu hồi bị từ chối', async (t) => {
@@ -302,6 +307,12 @@ test('IdP unavailable trả 503 có mã riêng thay vì 500 hoặc credential er
   const response = await app.inject({ method: 'GET', url: '/api/v1/tickets', headers: { authorization: 'Bearer valid' } });
   assert.equal(response.statusCode, 503);
   assert.equal(response.json().code, 'IDENTITY_PROVIDER_UNAVAILABLE');
+
+  const uninitApp = buildApp({}, { createTicket: {} });
+  t.after(() => uninitApp.close());
+  const uninitRes = await uninitApp.inject({ method: 'GET', url: '/api/v1/tickets', headers: { authorization: 'Bearer valid' } });
+  assert.equal(uninitRes.statusCode, 503);
+  assert.equal(uninitRes.json().code, 'IDENTITY_PROVIDER_UNAVAILABLE');
 });
 
 test('download không audit thành công khi storage read thất bại', async (t) => {

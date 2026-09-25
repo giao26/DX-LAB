@@ -38,7 +38,7 @@ class PTicketClient:
             if error.code in (400, 401, 403):
                 raise PTicketClientError('Phiên đăng nhập đã hết hạn.', 401, True) from error
             raise PTicketClientError('Dịch vụ xác thực tạm thời không khả dụng.', 503) from error
-        except (KeyError, OSError, ValueError, TypeError) as error:
+        except (AttributeError, KeyError, OSError, ValueError, TypeError) as error:
             raise PTicketClientError('Không thể tạo phiên ủy quyền tới dịch vụ ticket.', 503) from error
         if not isinstance(token, str) or not token:
             raise PTicketClientError('Phản hồi token exchange không hợp lệ.', 503)
@@ -57,6 +57,8 @@ class PTicketClient:
                 raise PTicketClientError('Phiên đăng nhập đã hết hạn hoặc quyền đã bị thu hồi.', 401, True) from error
             if error.code == 404:
                 raise PTicketClientError('Ticket không tồn tại hoặc bạn không có quyền truy cập.', 404) from error
+            if error.code == 400:
+                raise PTicketClientError('Yêu cầu không hợp lệ.', 400) from error
             raise PTicketClientError('Dịch vụ ticket tạm thời không khả dụng.', 503) from error
         except OSError as error:
             raise PTicketClientError('Không thể tải ticket trong phạm vi trách nhiệm.', 503) from error

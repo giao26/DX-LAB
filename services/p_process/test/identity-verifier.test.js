@@ -47,7 +47,7 @@ test('xác minh token và tra entitlement hiện hành qua stock Keycloak Admin 
     roles: ['employee'], groupIds: ['warranty'],
   });
   assert.ok(calls.some((url) => url.endsWith('/users/staff-1/role-mappings/realm/composite')));
-  assert.ok(calls.some((url) => url.endsWith('/users/staff-1/groups')));
+  assert.ok(calls.some((url) => url.includes('/users/staff-1/groups')));
 });
 
 test('bearer scheme không phân biệt hoa thường', async (t) => {

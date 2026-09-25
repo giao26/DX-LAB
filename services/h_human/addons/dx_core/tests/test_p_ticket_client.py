@@ -107,6 +107,22 @@ class PTicketClientTests(unittest.TestCase):
         with self.assertRaises(MODULE.PTicketClientError):
             client(lambda _req, timeout: next(responses)).download('attachment-1')
 
+    def test_p_ticket_client_handles_404_as_not_found(self):
+        def not_found(req, timeout):
+            if 'token' in req.full_url:
+                return FakeResponse({'access_token': 'read'})
+            raise urlerror.HTTPError(req.full_url, 404, 'not found', {}, None)
+
+        with self.assertRaises(MODULE.PTicketClientError) as raised:
+            client(not_found).get_detail('ticket-404')
+        self.assertEqual(raised.exception.status_code, 404)
+
+    def test_p_ticket_client_handles_non_dict_token_exchange(self):
+        opener = SequenceOpener([([{'access_token': 'read'}],)])
+        with self.assertRaises(MODULE.PTicketClientError) as raised:
+            client(opener).get_ticket_page()
+        self.assertEqual(raised.exception.status_code, 503)
+
     def test_odoo_workspace_is_on_demand_and_does_not_define_a_persistent_projection(self):
         addon = Path(__file__).parents[1]
         controller = (addon / 'controllers' / 'ticket_workspace.py').read_text(encoding='utf-8')

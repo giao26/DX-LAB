@@ -15,12 +15,12 @@ def _text(value):
 
 class DxTicketWorkspaceController(http.Controller):
     def _client(self):
-        subject_token = request.env.user.oauth_access_token
+        subject_token = getattr(request.env.user, 'oauth_access_token', None)
         if not subject_token:
-            raise PTicketClientError('Phiên đăng nhập chưa có token ủy quyền hợp lệ.')
+            raise PTicketClientError('Phiên đăng nhập chưa có token ủy quyền hợp lệ.', 401, True)
         return PTicketClient(
             os.environ.get('P_API_BASE_URL', 'http://p-process:3000'),
-            os.environ['OIDC_TOKEN_URL'],
+            os.environ.get('OIDC_TOKEN_URL', 'http://keycloak:8080/realms/dxlab/protocol/openid-connect/token'),
             os.environ.get('P_CLIENT_ID', 'odoo'),
             os.environ.get('P_CLIENT_SECRET', ''),
             subject_token,
@@ -110,7 +110,7 @@ a:focus{{outline:3px solid #ffbf47;outline-offset:2px}}.status{{font-weight:700}
             detail = client.get_detail(ticket_uuid)
             attachment = detail.get('attachment') if isinstance(detail.get('attachment'), dict) else None
             if not attachment or not isinstance(attachment.get('id'), str):
-                raise PTicketClientError('Ticket không có tệp đính kèm được phép tải.')
+                raise PTicketClientError('Ticket không có tệp đính kèm được phép tải.', 404)
             content, content_type = client.download(attachment['id'])
         except PTicketClientError as error:
             return self._error(error)

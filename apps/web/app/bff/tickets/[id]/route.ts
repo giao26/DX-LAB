@@ -42,6 +42,7 @@ export async function GET(
 
     const headers = new Headers({
       'Content-Type': response.headers.get('content-type') ?? 'application/json',
+      'Cache-Control': 'no-store',
     });
 
     if (!response.ok) return new NextResponse(await response.text(), { status: response.status, headers });
@@ -74,6 +75,6 @@ export async function GET(
       status: 503,
       code: 'UPSTREAM_UNAVAILABLE',
       detail: 'Không thể kết nối dịch vụ tra cứu ticket.',
-    }, { status: 503, headers: { 'Content-Type': 'application/problem+json' } });
+    }, { status: 503, headers: { 'Content-Type': 'application/problem+json', 'Cache-Control': 'no-store' } });
   }
 }

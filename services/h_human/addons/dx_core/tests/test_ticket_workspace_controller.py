@@ -116,6 +116,30 @@ class TicketWorkspaceControllerTests(unittest.TestCase):
         self.assertIn('/web/login', response['body'])
         self.assertEqual(response['headers']['Cache-Control'], 'no-store')
 
+    def test_real_client_construction_and_token_validation(self):
+        real_controller = controller_module.DxTicketWorkspaceController()
+        fake_request.env.user.oauth_access_token = 'real-token-123'
+        client = real_controller._client()
+        self.assertEqual(client.subject_token, 'real-token-123')
+
+        fake_request.env.user.oauth_access_token = None
+        with self.assertRaises(service_module.PTicketClientError) as raised:
+            real_controller._client()
+        self.assertEqual(raised.exception.status_code, 401)
+        self.assertTrue(raised.exception.reauth)
+
+    def test_missing_attachment_returns_404(self):
+        self.client.calls = []
+        detail_without_attachment = {
+            'id': 'ticket-no-file', 'code': 'TCK-2', 'provisionalType': 'Tư vấn',
+            'status': 'WAITING', 'summary': 'Tóm tắt', 'description': 'Mô tả',
+            'attachment': None,
+        }
+        self.client.get_detail = lambda _id: detail_without_attachment
+        response = self.controller.download_attachment('ticket-no-file')
+        self.assertEqual(response['status'], 404)
+        self.assertIn('Không thể tải ticket', response['body'])
+
 
 if __name__ == '__main__':
     unittest.main()

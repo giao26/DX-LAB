@@ -86,6 +86,7 @@ export class OidcIdentityVerifier implements IdentityVerifier {
       throw new AuthenticationError('Không thể xác minh token.', 401);
     }
     const claims = await jsonIdp(introspectionResponse) as IntrospectionResponse;
+    if (!claims || typeof claims !== 'object') throw new IdentityProviderUnavailableError('Dịch vụ xác thực trả dữ liệu không hợp lệ.');
     const audience = Array.isArray(claims.aud) ? claims.aud.filter((value): value is string => typeof value === 'string')
       : typeof claims.aud === 'string' ? [claims.aud] : [];
     const scopes = typeof claims.scope === 'string' ? claims.scope.split(/\s+/).filter(Boolean) : [];

@@ -51,7 +51,7 @@ export const ticketRoutes: FastifyPluginAsync<TicketRouteOptions> = async (app, 
   });
 
   const authenticate = async (authorization: string | undefined, scope: string) => {
-    if (!options.identityVerifier || !options.readTickets) throw new AuthenticationError('Dịch vụ xác thực chưa sẵn sàng.', 403);
+    if (!options.identityVerifier || !options.readTickets) throw new IdentityProviderUnavailableError('Dịch vụ xác thực chưa sẵn sàng.');
     return options.identityVerifier.verify(authorization, scope);
   };
   const denied = (error: AuthenticationError, url: string) => problem(error.statusCode, 'ACCESS_DENIED', 'Truy cập bị từ chối', error.message, url);
@@ -123,8 +123,9 @@ export const ticketRoutes: FastifyPluginAsync<TicketRouteOptions> = async (app, 
         return reply.status(404).type('application/problem+json').send(notFound(request.url));
       }
       await options.readTickets!.auditAttachmentDownload(principal, attachment.id, request.id);
+      const asciiName = attachment.displayName.replace(/["\\]/g, '').replace(/[^\x20-\x7E]/g, '_');
       return reply.header('Content-Type', attachment.detectedMime)
-        .header('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(attachment.displayName)}`)
+        .header('Content-Disposition', `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(attachment.displayName)}`)
         .header('X-Content-Type-Options', 'nosniff').send(content);
     } catch (error) {
       if (error instanceof AuthenticationError || error instanceof IdentityProviderUnavailableError) return sendAuthError(reply, error, request.url);
