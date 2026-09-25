@@ -13,12 +13,16 @@ import { ReadTicketsUseCase } from './application/read-tickets.js';
 import { OidcIdentityVerifier } from './adapters/http/oidc-identity-verifier.js';
 import { FilesystemAttachmentStorage } from './adapters/storage/filesystem-attachment-storage.js';
 
+import { PostgresAssignmentStore } from './adapters/postgres/assignment-store.js';
+import { ProcessOutboxEventsUseCase, HttpOdooEventRelay } from './application/process-outbox-events.js';
+
 const port = Number(process.env.PORT) || 3000;
 const host = process.env.HOST || '0.0.0.0';
 
 const pool = createDatabasePool();
 const attachmentStorage = new FilesystemAttachmentStorage();
-const ticketStore = new PostgresTicketIntakeStore(pool, attachmentStorage);
+const assignmentStore = new PostgresAssignmentStore(pool);
+const ticketStore = new PostgresTicketIntakeStore(pool, attachmentStorage, undefined, assignmentStore);
 const ticketReadStore = new PostgresTicketReadStore(pool);
 const readTickets = new ReadTicketsUseCase(ticketReadStore, ticketReadStore);
 const notificationStore = new PostgresNotificationStore(pool);
@@ -63,6 +67,14 @@ const processNotifications = new ProcessNotificationsUseCase(
   server.log,
 );
 
+const odooRelay = new HttpOdooEventRelay();
+const processOutbox = new ProcessOutboxEventsUseCase(
+  assignmentStore,
+  odooRelay,
+  auditPort,
+  server.log,
+);
+
 server.addHook('onClose', async () => {
   if (workerInterval) clearInterval(workerInterval);
   await pool.end();
@@ -74,15 +86,23 @@ async function start() {
     await server.listen({ port, host });
     server.log.info(`P Process core server listening on http://${host}:${port}`);
 
-    // Start background outbox notification worker with in-flight execution guard
+    // Start background outbox notification and event relay workers with in-flight execution guard
     let isProcessing = false;
     workerInterval = setInterval(async () => {
       if (isProcessing) return;
       isProcessing = true;
       try {
         await processNotifications.processPending(10);
+        await processOutbox.processPending(10);
+
+        // Periodically check and dispatch waiting FIFO queue tickets when capacity is available
+        for (const groupId of ['complaints', 'consulting', 'warranty']) {
+          await assignmentStore.assignNextQueuedTicket(groupId).catch((err) => {
+            server.log.error({ err, groupId }, 'Error dispatching queued tickets');
+          });
+        }
       } catch (err) {
-        server.log.error({ err }, 'Notification worker polling error');
+        server.log.error({ err }, 'Worker polling error');
       } finally {
         isProcessing = false;
       }

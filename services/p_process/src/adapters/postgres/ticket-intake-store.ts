@@ -14,6 +14,8 @@ import {
   FilesystemAttachmentStorage,
   type AttachmentStorage,
 } from '../storage/filesystem-attachment-storage.js';
+import type { IAssignmentStore } from '../../application/ports.js';
+import { PostgresAssignmentStore } from './assignment-store.js';
 
 type JsonValue = string | Record<string, unknown> | null;
 
@@ -23,11 +25,16 @@ function parseTicket(value: JsonValue): TicketRecord | null {
 }
 
 export class PostgresTicketIntakeStore implements TicketIntakeStore {
+  private readonly assignmentStore: IAssignmentStore;
+
   constructor(
     private readonly pool: pg.Pool,
     private readonly attachmentStorage: AttachmentStorage = new FilesystemAttachmentStorage(),
     private readonly groupMapping: Record<string, string> = parseGroupMapping(process.env.TICKET_TYPE_GROUP_MAPPING),
-  ) {}
+    assignmentStore?: IAssignmentStore,
+  ) {
+    this.assignmentStore = assignmentStore ?? new PostgresAssignmentStore(pool);
+  }
 
   async lookupIdempotency(command: { idempotencyKey: string; requestHash: string }): Promise<TicketIntakeResult | null> {
     await this.pool.query(
@@ -126,6 +133,7 @@ export class PostgresTicketIntakeStore implements TicketIntakeStore {
         }
       }
 
+      const groupId = this.groupMapping[command.input.provisionalType] ?? null;
       const ticketResult = await client.query(
         `INSERT INTO dx_core.tickets
           (code, customer_id, description, provisional_type, contact_review_required, group_id)
@@ -137,9 +145,10 @@ export class PostgresTicketIntakeStore implements TicketIntakeStore {
          RETURNING id, code, customer_id, status, provisional_type, description,
                    contact_review_required, received_at, created_at, updated_at`,
         [customerId, command.input.description, command.input.provisionalType, reviewRequired,
-          this.groupMapping[command.input.provisionalType] ?? null],
+          groupId],
       );
       const row = ticketResult.rows[0];
+
       const ticket: TicketRecord = {
         id: row.id,
         code: row.code,
@@ -150,6 +159,8 @@ export class PostgresTicketIntakeStore implements TicketIntakeStore {
         provisionalType: row.provisional_type,
         description: row.description,
         status: row.status,
+        groupId,
+        assignedSub: null,
         contactReviewRequired: row.contact_review_required,
         confirmationEmailStatus: 'PENDING',
         receivedAt: row.received_at.toISOString(),
@@ -182,6 +193,17 @@ export class PostgresTicketIntakeStore implements TicketIntakeStore {
           checksumSha256: attachmentRow.checksum_sha256,
           createdAt: attachmentRow.created_at.toISOString(),
         };
+      }
+
+      if (groupId) {
+        const assignment = await this.assignmentStore.assignTicket(
+          { id: row.id, code: row.code, groupId },
+          correlationId,
+          client,
+        );
+        if (assignment.assigned) {
+          ticket.assignedSub = assignment.assignedSub;
+        }
       }
 
       const email = buildConfirmationEmail({
@@ -265,6 +287,8 @@ export class PostgresTicketIntakeStore implements TicketIntakeStore {
          t.provisional_type,
          t.description,
          t.status,
+         t.group_id,
+         t.assigned_sub,
          t.contact_review_required,
          t.received_at,
          t.created_at,
@@ -296,6 +320,8 @@ export class PostgresTicketIntakeStore implements TicketIntakeStore {
       provisionalType: row.provisional_type,
       description: row.description,
       status: row.status,
+      groupId: row.group_id ?? null,
+      assignedSub: row.assigned_sub ?? null,
       contactReviewRequired: row.contact_review_required,
       confirmationEmailStatus: row.confirmation_email_status || 'PENDING',
       receivedAt: row.received_at.toISOString(),

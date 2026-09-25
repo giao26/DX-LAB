@@ -131,3 +131,21 @@ export const ticketAttachments = dxCoreSchema.table('ticket_attachments', {
   index('idx_ticket_attachments_ticket_id').on(table.ticketId),
 ]);
 
+export const staffRoster = dxCoreSchema.table('staff_roster', {
+  sub: varchar('sub', { length: 255 }).primaryKey(),
+  groupId: varchar('group_id', { length: 100 }).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  officialAssignmentCount: integer('official_assignment_count').default(0).notNull(),
+  lastAssignedAt: timestamp('last_assigned_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_staff_roster_group_active').on(
+    table.groupId,
+    table.isActive,
+    table.officialAssignmentCount,
+    table.lastAssignedAt,
+    table.sub,
+  ),
+]);
+

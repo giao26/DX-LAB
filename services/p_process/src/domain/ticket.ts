@@ -29,6 +29,8 @@ export interface TicketRecord extends Omit<TicketCreateInput, 'attachment'> {
   createdAt: string;
   updatedAt: string;
   attachment?: AttachmentRecord;
+  groupId?: string | null;
+  assignedSub?: string | null;
 }
 
 export type FieldErrors = Record<string, string[]>;

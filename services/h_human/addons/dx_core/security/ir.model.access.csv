@@ -1,3 +1,5 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_dx_employee_user,dx.employee.user,hr.model_hr_employee,base.group_user,1,0,0,0
 access_dx_employee_manager,dx.employee.manager,hr.model_hr_employee,hr.group_hr_user,1,1,1,0
+access_dx_event_inbox_user,dx.event.inbox.user,model_dx_event_inbox,base.group_user,1,0,0,0
+access_dx_event_inbox_manager,dx.event.inbox.manager,model_dx_event_inbox,base.group_system,1,1,1,1

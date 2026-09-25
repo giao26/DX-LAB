@@ -15,6 +15,7 @@
     'license': 'AGPL-3',
     'depends': [
         'base',
+        'mail',
         'hr',
         'auth_oauth',
     ],

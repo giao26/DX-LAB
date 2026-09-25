@@ -6,6 +6,7 @@
 
 import { OutboxEventStatus, IdempotencyRecord, AuditLogRecord } from '../domain/types.js';
 import { NotificationRecord, NotificationStatus } from '../domain/notification.js';
+import type { AssignmentResult } from '../domain/assignment.js';
 
 export interface IOutboxPort {
   publishEvent<T>(
@@ -80,4 +81,51 @@ export interface SendMailResult {
 
 export interface IMailerPort {
   sendMail(options: SendMailOptions): Promise<SendMailResult>;
+}
+
+export interface IAssignmentStore {
+  assignTicket(
+    ticket: { id: string; code: string; groupId: string },
+    correlationId: string,
+    client?: unknown,
+  ): Promise<AssignmentResult>;
+
+  assignNextQueuedTicket(
+    groupId: string,
+    correlationId?: string,
+    client?: unknown,
+  ): Promise<AssignmentResult | null>;
+}
+
+export interface OutboxEventRecord {
+  eventId: string;
+  eventType: string;
+  aggregateId: string;
+  aggregateVersion: number;
+  occurredAt: string;
+  actorSub: string;
+  correlationId: string;
+  causationId: string;
+  payload: Record<string, unknown>;
+  status: 'PENDING' | 'SENT' | 'FAILED' | 'DEAD_LETTER';
+  retryCount: number;
+  lastAttemptedAt?: string | null;
+  errorMessage?: string | null;
+}
+
+export interface IOutboxEventStore {
+  claimPendingEvents(batchSize?: number): Promise<OutboxEventRecord[]>;
+  updateEventStatus(
+    eventId: string,
+    status: 'PENDING' | 'SENT' | 'FAILED' | 'DEAD_LETTER',
+    details: {
+      retryCount: number;
+      errorMessage?: string | null;
+      lastAttemptedAt?: Date | null;
+    },
+  ): Promise<void>;
+}
+
+export interface IEventRelayPort {
+  relayEvent(event: OutboxEventRecord): Promise<{ success: boolean; error?: string }>;
 }
