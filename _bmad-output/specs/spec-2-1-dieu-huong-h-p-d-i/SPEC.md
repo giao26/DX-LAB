@@ -26,6 +26,7 @@ Nhân sự công ty cần vào đúng khu vực làm việc từ một Portal, k
 
 - Tuân thủ AD-5/6/17: một Next.js BFF, Keycloak Authorization Code PKCE; cookie Secure/HttpOnly/SameSite=Lax chỉ chứa ID phiên opaque có chữ ký; token nằm server-side, mutation dùng cookie có CSRF.
 - Từng tài nguyên đích kiểm tra lại quyền và từ chối theo mặc định. Không trả cấu trúc, thông báo, liên kết hoặc dữ liệu nội bộ trước xác thực hay cho người bị từ chối.
+- Membership là tài khoản hoạt động có ít nhất một role hiện hành employee/group_lead/department_head/director; Dashboard D/I chỉ director. Đây là phương án đề xuất được người dùng đồng ý tiếp tục build.
 - Giao diện tiếng Việt theo DESIGN/EXPERIENCE: Công nghệ mở, Xanh tin cậy và WCAG 2.2 AA. Chức năng chưa triển khai phải nói rõ, không tạo dữ liệu giả.
 
 ## Ngoài phạm vi
@@ -35,7 +36,3 @@ Không xây thư viện SOP (2.2), thông báo (2.3), KPI/BI hoặc AI (Epic 3/4
 ## Dấu hiệu thành công
 
 Chín tình huống trong acceptance-matrix được xác minh: đăng nhập và từ chối đúng quyền, H/P có quay lại, D/I cùng Dashboard, khách chỉ dùng luồng công khai, các ô dùng được bằng bàn phím và không tràn ngang ở kích thước/zoom yêu cầu.
-
-## Câu hỏi còn mở
-
-Ánh xạ membership công ty và quyền Dashboard từ realm hiện có cần được điều tra trong bước lập kế hoạch build; chưa coi đặc tả là ready-for-dev khi ánh xạ này chưa rõ.

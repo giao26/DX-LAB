@@ -99,6 +99,11 @@ services:
       - p-process
     environment:
       P_PROCESS_BASE_URL: http://p-process:3000
+      DX_PUBLIC_ORIGIN: ${DX_PUBLIC_ORIGIN:-https://localhost}
+      WEB_OIDC_ISSUER: ${WEB_OIDC_ISSUER:-${OIDC_ISSUER:-https://localhost/realms/dxlab}}
+      WEB_OIDC_BACKCHANNEL_ISSUER: ${WEB_OIDC_BACKCHANNEL_ISSUER:-http://keycloak:8080/realms/dxlab}
+      WEB_OIDC_CLIENT_ID: ${WEB_OIDC_CLIENT_ID:-web}
+      WEB_SESSION_SECRET: ${WEB_SESSION_SECRET:-}
     networks:
       - app-net
 

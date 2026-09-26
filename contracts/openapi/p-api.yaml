@@ -15,6 +15,33 @@ servers:
     description: Mạng nội bộ Docker Compose (application network)
 
 paths:
+  /api/v1/identity:
+    get:
+      summary: Định danh và quyền hiện hành cho Portal (không PII)
+      operationId: getPortalIdentity
+      security:
+        - keycloakBearer: [portal:read]
+      description: Yêu cầu token scope portal:read; kiểm tra online tài khoản hoạt động và membership mỗi request.
+      responses:
+        '200':
+          description: Định danh đã xác minh; Cache-Control private, no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [sub, roles, groups]
+                properties:
+                  sub: { type: string }
+                  roles:
+                    type: array
+                    items: { type: string, enum: [employee, group_lead, department_head, director] }
+                  groups:
+                    type: array
+                    items: { type: string }
+        '401': { description: Token không hợp lệ }
+        '403': { description: Thiếu scope hoặc membership đã bị thu hồi }
+        '503': { description: Dịch vụ xác thực không khả dụng }
   /health:
     get:
       summary: Kiểm tra trạng thái sẵn sàng của dịch vụ
@@ -305,6 +332,7 @@ components:
           authorizationUrl: /realms/dxlab/protocol/openid-connect/auth
           tokenUrl: /realms/dxlab/protocol/openid-connect/token
           scopes:
+            portal:read: Đọc định danh và membership Portal hiện hành
             tickets:read: Đọc ticket theo phạm vi trách nhiệm
             tickets:download: Tải tệp của ticket được phép
             tickets:write: Xử lý ticket do mình phụ trách trong nhóm

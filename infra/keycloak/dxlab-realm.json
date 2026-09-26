@@ -31,6 +31,7 @@
         }
       ]
     },
+    { "name": "portal:read", "protocol": "openid-connect", "attributes": { "include.in.token.scope": "true" } },
     { "name": "tickets:read", "protocol": "openid-connect", "attributes": { "include.in.token.scope": "true" } },
     { "name": "tickets:download", "protocol": "openid-connect", "attributes": { "include.in.token.scope": "true" } },
     { "name": "tickets:write", "protocol": "openid-connect", "attributes": { "include.in.token.scope": "true" } }
@@ -62,12 +63,14 @@
       "protocol": "openid-connect",
       "publicClient": true,
       "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": true,
-      "redirectUris": ["https://localhost/*"],
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["https://localhost/bff/session/callback"],
+      "attributes": { "pkce.code.challenge.method": "S256" },
       "webOrigins": ["https://localhost"],
-      "defaultClientScopes": ["basic", "tickets:read", "tickets:write"],
+      "defaultClientScopes": ["basic", "portal:read", "tickets:read", "tickets:write"],
       "optionalClientScopes": ["tickets:download"],
       "protocolMappers": [
+        { "name": "web-audience", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.client.audience": "web", "access.token.claim": "true", "id.token.claim": "true" } },
         {
           "name": "p-process-audience",
           "protocol": "openid-connect",

@@ -7,6 +7,7 @@
 import Fastify, { FastifyError, FastifyInstance, FastifyServerOptions } from 'fastify';
 import { healthRoutes } from './routes/health.js';
 import { ticketRoutes } from './routes/tickets.js';
+import { identityRoutes } from './routes/identity.js';
 import type { CreateTicketUseCase } from '../../application/create-ticket.js';
 import type { TicketRecord } from '../../domain/ticket.js';
 import type { IdentityVerifier } from '../../application/principal.js';
@@ -49,6 +50,7 @@ export function buildApp(opts: FastifyServerOptions = {}, dependencies: AppDepen
 
   // Register routes
   app.register(healthRoutes);
+  if (dependencies.identityVerifier) app.register(identityRoutes, { identityVerifier: dependencies.identityVerifier });
   if (dependencies.createTicket) {
     app.register(ticketRoutes, {
       createTicket: dependencies.createTicket,
