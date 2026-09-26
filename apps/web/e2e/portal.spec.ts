@@ -128,3 +128,75 @@ test('Resources library: navigation from H, search, filter, detail, draft reject
   expect(a11y.violations).toEqual([]);
 });
 
+test('Story 2.3: H and P work initiation, announcement scoping, error retry, process catalog', async ({ page, request }) => {
+  await login(page, 'employee');
+
+  // Navigate to H page
+  await page.goto('/portal/h');
+  await expect(page.getByRole('heading', { level: 1, name: 'H — Con người' })).toBeVisible();
+
+  // Scoped announcements verification:
+  // Default employee in fake-services has group ['Kỹ thuật']
+  await expect(page.getByText('Chào mừng đến DX-OS – hệ thống quản lý vận hành số')).toBeVisible();
+  await expect(page.getByText('Lịch bảo trì hệ thống tháng 10/2026')).toBeVisible();
+  // Group 'Nhân sự' announcement is NOT visible
+  await expect(page.getByText('Quy trình onboarding nhân viên mới cập nhật')).toHaveCount(0);
+
+  // Resources block link
+  await expect(page.getByRole('heading', { level: 2, name: 'Tri thức công ty' })).toBeVisible();
+  const resourcesLink = page.getByRole('link', { name: 'Mở Resources' });
+  await expect(resourcesLink).toHaveAttribute('href', '/portal/resources');
+
+  // Odoo block link
+  await expect(page.getByRole('heading', { level: 2, name: 'Công cụ làm việc' })).toBeVisible();
+  const odooLink = page.getByRole('link', { name: 'Mở Odoo' });
+  await expect(odooLink).toHaveAttribute('href', '/dx/tickets/workspace');
+
+  // Breadcrumb return
+  await page.getByRole('link', { name: '← Quay lại Portal' }).click();
+  await expect(page).toHaveURL('http://localhost:3100/portal');
+
+  // Navigate to P page
+  await page.goto('/portal/p');
+  await expect(page.getByRole('heading', { level: 1, name: 'P — Tiến trình' })).toBeVisible();
+
+  // Process catalog: DX-Ticket card
+  await expect(page.getByRole('heading', { level: 2, name: 'DX-Ticket' })).toBeVisible();
+  await expect(page.getByText('Đang hoạt động')).toBeVisible();
+  await expect(page.getByText('Tiếp nhận và xử lý yêu cầu khiếu nại, tư vấn, bảo hành')).toBeVisible();
+  await expect(page.getByText('Khách hàng (công khai), Nhân viên nội bộ')).toBeVisible();
+
+  // Click CTA to open public form
+  await page.getByRole('link', { name: /Mở biểu mẫu DX-Ticket/i }).click();
+  await expect(page).toHaveURL('http://localhost:3100/');
+  await expect(page.getByRole('heading', { level: 1, name: 'Tạo yêu cầu hỗ trợ' })).toBeVisible();
+
+  // Isolated error test on H page:
+  // Turn announcements offline
+  await request.get('http://localhost:3101/control?sub=employee&role=employee&announcements_offline=true');
+  await page.goto('/portal/h');
+  await expect(page.getByText('Không thể tải danh sách thông báo.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Thử lại' })).toBeVisible();
+
+  // Resources and Odoo blocks remain operational during announcement error
+  await expect(page.getByRole('link', { name: 'Mở Resources' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Mở Odoo' })).toBeVisible();
+
+  // Restore service and retry
+  await request.get('http://localhost:3101/control?sub=employee&role=employee&announcements_offline=false');
+  await page.getByRole('button', { name: 'Thử lại' }).click();
+  await expect(page.getByText('Chào mừng đến DX-OS – hệ thống quản lý vận hành số')).toBeVisible();
+
+  // Accessibility and reflow test at 320px
+  await page.setViewportSize({ width: 320, height: 700 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+  await page.evaluate(() => { document.documentElement.style.zoom = '2'; });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  await page.evaluate(() => { document.documentElement.style.zoom = ''; });
+
+  const a11y = await new AxeBuilder({ page }).analyze();
+  expect(a11y.violations).toEqual([]);
+});
+
+

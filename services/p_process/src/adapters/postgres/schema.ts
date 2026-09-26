@@ -178,3 +178,16 @@ export const resources = dxCoreSchema.table('resources', {
 ]);
 
 
+export const announcements = dxCoreSchema.table('announcements', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  title: varchar('title', { length: 500 }).notNull(),
+  body: text('body').default('').notNull(),
+  scope: varchar('scope', { length: 20 }).notNull(),
+  targetGroup: varchar('target_group', { length: 100 }),
+  publishedAt: timestamp('published_at', { withTimezone: true }).defaultNow().notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_announcements_scope').on(table.scope),
+  index('idx_announcements_target_group').on(table.targetGroup),
+]);

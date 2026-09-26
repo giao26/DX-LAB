@@ -2,13 +2,23 @@ import { createServer } from 'node:http';
 import { createHash, generateKeyPairSync, randomUUID, sign } from 'node:crypto';
 const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const issuer = 'http://localhost:3101/realms/test';
-const codes = new Map(); const tokens = new Map(); const roles = new Map();
+const codes = new Map(); const tokens = new Map(); const roles = new Map(); const groupsMap = new Map();
 let unavailable = false;
+let announcementsUnavailable = false;
 function json(res, status, value) { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(value)); }
 const server = createServer(async (req,res) => {
   const url = new URL(req.url, 'http://localhost:3101');
   if (url.pathname === '/') return json(res,200,{status:'ready'});
-  if (url.pathname === '/control') { roles.set(url.searchParams.get('sub'), url.searchParams.get('role')); unavailable = url.searchParams.get('offline') === 'true'; return json(res,200,{}); }
+  if (url.pathname === '/control') {
+    if (url.searchParams.has('sub')) roles.set(url.searchParams.get('sub'), url.searchParams.get('role'));
+    if (url.searchParams.has('groups')) {
+      const g = url.searchParams.get('groups');
+      groupsMap.set(url.searchParams.get('sub'), g ? g.split(',') : []);
+    }
+    unavailable = url.searchParams.get('offline') === 'true';
+    announcementsUnavailable = url.searchParams.get('announcements_offline') === 'true';
+    return json(res,200,{});
+  }
   if (url.pathname.endsWith('/auth')) {
     if (!url.searchParams.has('user')) {
       res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8' });
@@ -31,7 +41,8 @@ const server = createServer(async (req,res) => {
     if (unavailable) return json(res,503,{});
     const user=tokens.get(req.headers.authorization?.replace('Bearer ','')); const role=roles.get(user);
     if (!user || !['employee','director','department_head'].includes(role)) return json(res,403,{});
-    return json(res,200,{sub:user,roles:[role],groups:[]});
+    const groups = groupsMap.has(user) ? groupsMap.get(user) : (user === 'employee' ? ['Kỹ thuật'] : []);
+    return json(res,200,{sub:user,roles:[role],groups});
   }
   const sampleDocs = [
     { id: '60000000-0000-4000-8000-000000000001', code: 'SOP-TKT-001', type: 'sop', title: 'Quy trình tiếp nhận và phân công ticket', status: 'published', statusLabel: 'Đang có hiệu lực', version: '1.0.0', effectiveDate: '2026-01-01', approverName: 'Ban Giám đốc', publishedAt: '2026-01-01T08:00:00Z', summary: 'Quy định các bước tiếp nhận và phân công ticket.', content: 'Chi tiết quy trình tiếp nhận và phân công ticket.' },
@@ -73,6 +84,20 @@ const server = createServer(async (req,res) => {
     const found = sampleDocs.find(d => d.id === id || d.code === id);
     if (!found) return json(res,404,{ type: 'about:blank', title: 'Not Found', status: 404, code: 'RESOURCE_NOT_FOUND', detail: 'Tài liệu không tồn tại' });
     return json(res,200,found);
+  }
+  if (url.pathname === '/api/v1/announcements') {
+    if (unavailable || announcementsUnavailable) return json(res,503,{});
+    const user=tokens.get(req.headers.authorization?.replace('Bearer ','')); const role=roles.get(user);
+    if (!user || !['employee','director','department_head'].includes(role)) return json(res,403,{});
+    const rawGroups = url.searchParams.get('groups') || '';
+    const userGroups = rawGroups ? rawGroups.split(',').map(g => g.trim()) : [];
+    const sampleAnnouncements = [
+      { id: '70000000-0000-4000-8000-000000000001', title: 'Chào mừng đến DX-OS – hệ thống quản lý vận hành số', body: 'DX-OS là nền tảng số hóa quy trình vận hành doanh nghiệp. Truy cập Portal để khám phá các không gian làm việc H, P, D, I.', scope: 'company', target_group: null, published_at: '2026-09-20T08:00:00Z' },
+      { id: '70000000-0000-4000-8000-000000000002', title: 'Lịch bảo trì hệ thống tháng 10/2026', body: 'Hệ thống sẽ bảo trì định kỳ vào ngày 05/10/2026 từ 22:00 đến 02:00.', scope: 'group', target_group: 'Kỹ thuật', published_at: '2026-09-23T08:00:00Z' },
+      { id: '70000000-0000-4000-8000-000000000003', title: 'Quy trình onboarding nhân viên mới cập nhật', body: 'Quy trình onboarding đã được cập nhật với các bước mới tại thư viện Resources.', scope: 'group', target_group: 'Nhân sự', published_at: '2026-09-25T08:00:00Z' },
+    ];
+    const filtered = sampleAnnouncements.filter(a => a.scope === 'company' || (a.scope === 'group' && a.target_group && userGroups.includes(a.target_group)));
+    return json(res,200,{ data: filtered });
   }
   return json(res,404,{});
 });
