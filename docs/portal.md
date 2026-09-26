@@ -11,3 +11,13 @@ Cookie __Host-dx-session chỉ chứa ID ngẫu nhiên ký HMAC, Secure/HttpOnly
 `npm.cmd run test:e2e` build và chạy Web production ở localhost:3100 với fake IdP/P ở localhost:3101; runner quản lý trực tiếp process Node và đóng cả hai khi kết thúc. Fake IdP ký JWT RSA và xác minh PKCE khi đổi code, không có bypass trong code production. Chrome chấp nhận Secure cookie ở localhost; kiểm thử này không thay thế xác minh HTTPS/Keycloak thực trên môi trường triển khai.
 
 Realm JSON chỉ là cấu hình cho import mới, không tự áp dụng realm đang chạy. Quản trị viên cần cập nhật client web trên realm hiện có: Standard Flow bật, Direct Access Grants tắt, PKCE S256 bắt buộc, redirect URI chính xác https://<domain>/bff/session/callback; scope portal:read được đưa vào token, audience web và p-process. Đồng bộ issuer/origin trong cấu hình triển khai; giữ role và policy P/Odoo hiện hành. Không chạy import, rebuild hoặc thay dữ liệu demo để áp dụng story này.
+
+## Kiểm thử vận hành local — 26/09/2026
+
+Theo yêu cầu kiểm thử vận hành, đã tạo `.env` local với khóa phiên ngẫu nhiên, cập nhật client Web trên realm hiện có và build/recreate riêng Web/P. Không xóa volume, không reset mật khẩu hoặc thay quyền tài khoản. Tài khoản demo director đã hoàn tất tên/họ bắt buộc của Keycloak ở lần đăng nhập đầu; file Admin CLI tạm đã xóa.
+
+Đã kiểm thử qua Chrome với HTTPS localhost và Keycloak/P thật: staff.warranty và director đăng nhập thành công, Portal có bốn ô, H/P có đường quay lại; staff bị từ chối Dashboard còn director mở được phần I; cookie đủ Secure/HttpOnly/SameSite=Lax; logout xóa cookie phiên. Browser kiểm thử bỏ qua lỗi CA local, không tắt xác minh TLS trong cấu hình ứng dụng.
+
+Để kiểm thử bằng tay, mở `https://localhost/portal` trong hai cửa sổ/profile trình duyệt tách biệt. Dùng tài khoản demo `staff.warranty` và `director`, mật khẩu fixture `dxlab-demo-2026`. Với mỗi tài khoản, thử H/P và quay lại Portal; thử D/I để thấy đúng khác biệt quyền; đăng xuất về biểu mẫu công khai. Dùng bàn phím Tab/Enter và kiểm tra màn hình hẹp/zoom 200%. Logout chỉ hủy phiên Web; phiên SSO Keycloak còn tồn tại nên đăng nhập lại có thể không hỏi mật khẩu. Dùng profile/cửa sổ ẩn danh riêng để đổi tài khoản.
+
+Giới hạn vận hành còn lại: `/dx/tickets/workspace` của Odoo trả HTTP 502 ở lần kiểm tra này. Portal/H/P và Dashboard đã hoạt động; chuyển từ H vào Odoo chưa xác minh được. Thư viện SOP, thông báo, KPI và AI vẫn là phần chưa triển khai như phạm vi story. Chưa kiểm thử thu hồi role/disable tài khoản trên realm thật; các tình huống này đã có kiểm thử tự động cô lập. Sprint giữ `review` để người dùng duyệt vận hành.
