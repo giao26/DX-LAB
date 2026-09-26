@@ -130,3 +130,48 @@ export interface IOutboxEventStore {
 export interface IEventRelayPort {
   relayEvent(event: OutboxEventRecord): Promise<{ success: boolean; error?: string }>;
 }
+
+export interface ReportingTicketRow {
+  id: string;
+  code: string;
+  status: 'WAITING' | 'IN_PROGRESS' | 'CLOSED';
+  provisionalType: string;
+  groupId: string;
+  assignedSub: string | null;
+  receivedAt: string;
+  closedAt: string | null;
+  slaDueAt: string | null;
+  slaOverdue: boolean;
+  processingSteps: Array<{
+    id: string;
+    label: string;
+    startedAt: string;
+    endedAt: string | null;
+  }>;
+  csatScore: number | null;
+  csatCreatedAt: string | null;
+}
+
+export interface CsatRatingRecord {
+  id: string;
+  ticketId: string;
+  score: number;
+  comment: string | null;
+  createdAt: string;
+}
+
+export interface IReportingStore {
+  queryReportingTickets(input: {
+    from: Date;
+    to: Date;
+    groupIds: string[];
+  }): Promise<ReportingTicketRow[]>;
+
+  saveCsatRating(input: {
+    ticketId: string;
+    score: number;
+    comment?: string | null;
+  }): Promise<CsatRatingRecord>;
+
+  getCsatRating(ticketId: string): Promise<CsatRatingRecord | null>;
+}

@@ -22,6 +22,8 @@ import { PostgresResourceStore } from './adapters/postgres/resource-store.js';
 import { ReadResourcesUseCase } from './application/read-resources.js';
 import { PostgresAnnouncementStore } from './adapters/postgres/announcement-store.js';
 import { ReadAnnouncementsUseCase } from './application/read-announcements.js';
+import { PostgresReportingStore } from './adapters/postgres/reporting-store.js';
+import { ReadReportingUseCase } from './application/read-reporting.js';
 
 const port = Number(process.env.PORT) || 3000;
 const host = process.env.HOST || '0.0.0.0';
@@ -39,19 +41,6 @@ const readAnnouncements = new ReadAnnouncementsUseCase(announcementStore);
 const notificationStore = new PostgresNotificationStore(pool);
 const mailer = new SmtpMailer();
 const createTicket = new CreateTicketUseCase(ticketStore);
-
-let workerInterval: NodeJS.Timeout | null = null;
-
-const server = buildApp({}, {
-  createTicket,
-  getPublicTicketStatus: (id) => ticketStore.getPublicTicketStatus(id),
-  identityVerifier: new OidcIdentityVerifier(),
-  readTickets,
-  processTicket: new ProcessTicketUseCase(new PostgresTicketProcessingStore(pool)),
-  readResources,
-  readAnnouncements,
-  attachmentStorage,
-});
 
 const auditPort: IAuditPort = {
   async recordAudit(entry) {
@@ -73,6 +62,23 @@ const auditPort: IAuditPort = {
     );
   },
 };
+
+const reportingStore = new PostgresReportingStore(pool);
+const readReporting = new ReadReportingUseCase(reportingStore, auditPort);
+
+let workerInterval: NodeJS.Timeout | null = null;
+
+const server = buildApp({}, {
+  createTicket,
+  getPublicTicketStatus: (id) => ticketStore.getPublicTicketStatus(id),
+  identityVerifier: new OidcIdentityVerifier(),
+  readTickets,
+  processTicket: new ProcessTicketUseCase(new PostgresTicketProcessingStore(pool)),
+  readResources,
+  readAnnouncements,
+  readReporting,
+  attachmentStorage,
+});
 
 const processNotifications = new ProcessNotificationsUseCase(
   notificationStore,

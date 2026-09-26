@@ -194,3 +194,15 @@ export const announcements = dxCoreSchema.table('announcements', {
   index('idx_announcements_scope').on(table.scope),
   index('idx_announcements_target_group').on(table.targetGroup),
 ]);
+
+export const csatRatings = dxCoreSchema.table('csat_ratings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  ticketId: uuid('ticket_id').notNull().unique().references(() => tickets.id, { onDelete: 'cascade' }),
+  score: integer('score').notNull(),
+  comment: text('comment'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  check('csat_ratings_score_check', sql`${table.score} >= 1 AND ${table.score} <= 5`),
+  index('idx_csat_ratings_ticket_id').on(table.ticketId),
+  index('idx_csat_ratings_score').on(table.score),
+]);

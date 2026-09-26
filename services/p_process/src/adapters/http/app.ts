@@ -10,6 +10,7 @@ import { ticketRoutes } from './routes/tickets.js';
 import { identityRoutes } from './routes/identity.js';
 import { resourcesRoutes } from './routes/resources.js';
 import { announcementsRoutes } from './routes/announcements.js';
+import { reportingRoutes } from './routes/reporting.js';
 import type { CreateTicketUseCase } from '../../application/create-ticket.js';
 import type { TicketRecord } from '../../domain/ticket.js';
 import type { IdentityVerifier } from '../../application/principal.js';
@@ -17,6 +18,7 @@ import type { ReadTicketsUseCase } from '../../application/read-tickets.js';
 import type { ProcessTicketUseCase } from '../../application/process-ticket.js';
 import type { ReadResourcesUseCase } from '../../application/read-resources.js';
 import type { ReadAnnouncementsUseCase } from '../../application/read-announcements.js';
+import type { ReadReportingUseCase } from '../../application/read-reporting.js';
 import type { AttachmentStorage } from '../storage/filesystem-attachment-storage.js';
 
 export interface AppDependencies {
@@ -28,6 +30,7 @@ export interface AppDependencies {
   processTicket?: ProcessTicketUseCase;
   readResources?: ReadResourcesUseCase;
   readAnnouncements?: ReadAnnouncementsUseCase;
+  readReporting?: ReadReportingUseCase;
   attachmentStorage?: AttachmentStorage;
 }
 
@@ -78,6 +81,12 @@ export function buildApp(opts: FastifyServerOptions = {}, dependencies: AppDepen
     app.register(announcementsRoutes, {
       readAnnouncements: dependencies.readAnnouncements,
       identityVerifier: dependencies.identityVerifier,
+    });
+  }
+  if (dependencies.readReporting) {
+    app.register(reportingRoutes, {
+      readReporting: dependencies.readReporting,
+      identityVerifier: dependencies.identityVerifier!,
     });
   }
 

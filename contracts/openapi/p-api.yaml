@@ -533,6 +533,154 @@ paths:
             application/problem+json:
               schema: { $ref: '#/components/schemas/ProblemDetails' }
 
+  /api/v1/reporting/metrics:
+    get:
+      summary: Xem bộ chỉ số vận hành thống nhất theo phạm vi (Story 3.1)
+      operationId: getReportingMetrics
+      security:
+        - keycloakBearer: [reporting:read]
+      description: >-
+        Truy vấn các chỉ số vận hành chuẩn hóa (ticket mới, tồn đọng, đã đóng, SLA, thời gian bước, CSAT)
+        theo phạm vi phân quyền nhóm (deny-by-default).
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Thời điểm bắt đầu kỳ báo cáo (mặc định đầu tháng)
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Thời điểm kết thúc kỳ báo cáo (mặc định hiện tại)
+        - name: group_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Mã nhóm cần lọc (nếu trong phạm vi được cấp)
+      responses:
+        '200':
+          description: Bộ chỉ số vận hành thống nhất
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportingMetricsResponse'
+        '400':
+          description: Tham số kỳ báo cáo không hợp lệ
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '401':
+          description: Xác thực thất bại
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Từ chối do vượt phạm vi hoặc không đủ quyền
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '503':
+          description: Dịch vụ xác thực không khả dụng
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /api/v1/reporting/grants:
+    post:
+      summary: Cấp grant báo cáo ngắn hạn có chữ ký HMAC cho BFF/Superset (Story 3.1)
+      operationId: createReportingGrant
+      security:
+        - keycloakBearer: [reporting:read]
+      description: >-
+        Phát hành grant token ngắn hạn (5 phút) có chữ ký HMAC-SHA256 chứa danh sách nhóm chính xác được phép.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportingGrantRequest'
+      responses:
+        '201':
+          description: Cấp grant thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportingGrantResponse'
+        '401':
+          description: Xác thực thất bại
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Từ chối do nhóm yêu cầu vượt quá phạm vi hoặc không đủ vai trò
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /api/v1/tickets/{ticketId}/csat:
+    post:
+      summary: Gửi đánh giá CSAT cho ticket đã hoàn tất (Story 3.1)
+      operationId: submitTicketCsat
+      description: >-
+        Khách hàng gửi phản hồi đánh giá chất lượng dịch vụ (1–5 sao) và nhận xét tùy chọn.
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Mã định danh ticket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CsatRatingCreateRequest'
+      responses:
+        '201':
+          description: Đánh giá CSAT thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CsatRatingResponse'
+        '400':
+          description: Dữ liệu đánh giá không hợp lệ
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: Không tìm thấy ticket
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: Ticket đã được đánh giá CSAT trước đó
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '422':
+          description: Ticket chưa hoàn tất để đánh giá CSAT
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
 components:
   securitySchemes:
     keycloakBearer:
@@ -546,6 +694,7 @@ components:
             tickets:read: Đọc ticket theo phạm vi trách nhiệm
             tickets:download: Tải tệp của ticket được phép
             tickets:write: Xử lý ticket do mình phụ trách trong nhóm
+            reporting:read: Xem báo cáo và chỉ số vận hành thống nhất
   schemas:
     ProcessingState:
       type: object
@@ -997,4 +1146,143 @@ components:
             publishedAt:
               type: string
               format: date-time
+
+    ReportingMetricValue:
+      type: object
+      additionalProperties: false
+      required: [value, unit, denominator]
+      properties:
+        value: { type: integer }
+        unit: { type: string, example: ticket }
+        denominator: { type: [integer, 'null'] }
+
+    ReportingCsatMetric:
+      type: object
+      additionalProperties: false
+      required: [rate_percent, response_count, average_score, unanswered_count]
+      properties:
+        rate_percent: { type: [number, 'null'], example: 87.5 }
+        response_count: { type: integer, example: 8 }
+        average_score: { type: [number, 'null'], example: 4.50 }
+        unanswered_count: { type: integer, example: 1 }
+
+    ReportingStepDuration:
+      type: object
+      additionalProperties: false
+      required: [step_id, label, avg_duration_minutes]
+      properties:
+        step_id: { type: string, example: '1' }
+        label: { type: string, example: Tiếp nhận sản phẩm }
+        avg_duration_minutes: { type: number, example: 15.2 }
+
+    ReportingMetricsResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - definition_version
+        - period
+        - scope
+        - kpis
+        - step_durations
+        - ticket_ids
+      properties:
+        definition_version:
+          type: string
+          example: 'v1.0'
+        period:
+          type: object
+          additionalProperties: false
+          required: [from, to]
+          properties:
+            from: { type: string, format: date-time }
+            to: { type: string, format: date-time }
+        scope:
+          type: object
+          additionalProperties: false
+          required: [role, groups]
+          properties:
+            role: { type: string }
+            groups:
+              type: array
+              items: { type: string }
+        kpis:
+          type: object
+          additionalProperties: false
+          required:
+            - new_tickets
+            - backlog_tickets
+            - closed_tickets
+            - within_sla_tickets
+            - overdue_sla_tickets
+            - csat
+          properties:
+            new_tickets:
+              $ref: '#/components/schemas/ReportingMetricValue'
+            backlog_tickets:
+              $ref: '#/components/schemas/ReportingMetricValue'
+            closed_tickets:
+              $ref: '#/components/schemas/ReportingMetricValue'
+            within_sla_tickets:
+              $ref: '#/components/schemas/ReportingMetricValue'
+            overdue_sla_tickets:
+              $ref: '#/components/schemas/ReportingMetricValue'
+            csat:
+              $ref: '#/components/schemas/ReportingCsatMetric'
+        step_durations:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReportingStepDuration'
+        ticket_ids:
+          type: array
+          items: { type: string, format: uuid }
+
+    ReportingGrantRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        groups:
+          type: array
+          items: { type: string }
+
+    ReportingGrantResponse:
+      type: object
+      additionalProperties: false
+      required: [grant_token, sub, roles, allowed_groups, expires_at, signature]
+      properties:
+        grant_token: { type: string }
+        sub: { type: string }
+        roles:
+          type: array
+          items: { type: string }
+        allowed_groups:
+          type: array
+          items: { type: string }
+        expires_at: { type: string, format: date-time }
+        signature: { type: string }
+
+    CsatRatingCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [score]
+      properties:
+        score:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 5
+        comment:
+          type: string
+          maxLength: 2000
+          example: Dịch vụ rất tốt và nhanh chóng
+
+    CsatRatingResponse:
+      type: object
+      additionalProperties: false
+      required: [id, ticketId, score, comment, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        ticketId: { type: string, format: uuid }
+        score: { type: integer }
+        comment: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
 
