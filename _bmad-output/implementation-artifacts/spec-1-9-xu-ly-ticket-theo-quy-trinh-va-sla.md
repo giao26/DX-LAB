@@ -77,6 +77,8 @@ SLA: 120 phút làm việc từ `received_at`, thứ Hai–thứ Sáu 08–12/13
 - Kiểm tra cuối: npm.cmd test — 79/79; python -m unittest discover -s services/h_human/addons/dx_core/tests — 31/31; npm.cmd run test:integration với DATABASE_URL test và TEST_P_BASE_URL — PASS; python scripts/test-architecture.py với CLI portable — ALL PASS.
 - PostgreSQL/HTTP kiểm thử đã dừng sau xác minh. Deferred duy nhất: kiểm tra trực quan Odoo trên browser (320px/zoom 200%).
 
+- Người dùng yêu cầu kết thúc kiểm thử demo và đánh dấu story 1.9 hoàn tất ngày 2026-09-26; sprint chuyển sang done dựa trên triển khai, review và kiểm thử tự động. Lỗi tạo ticket trên môi trường demo vừa quan sát chưa được chẩn đoán, không coi là đã khắc phục.
+
 ## Spec Change Log
 
 ## Review Triage Log
