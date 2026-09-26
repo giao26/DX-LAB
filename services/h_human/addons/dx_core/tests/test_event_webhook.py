@@ -5,9 +5,21 @@ from pathlib import Path
 import sys
 import types
 import unittest
+from contextlib import contextmanager
 
 
 ADDON = Path(__file__).parents[1]
+
+class FakeEnv(dict):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.savepoints = 0
+        self.cr = self
+
+    @contextmanager
+    def savepoint(self):
+        self.savepoints += 1
+        yield
 
 # Set up fake Odoo environment
 class FakeRecordSet:
@@ -164,10 +176,10 @@ class EventWebhookControllerTests(unittest.TestCase):
         self.controller = webhook_module.DxEventWebhookController()
         fake_request.inbox_model = FakeInboxModel()
         fake_request.users_model = FakeUsersModel()
-        fake_request.env = {
+        fake_request.env = FakeEnv({
             'dx.event.inbox': fake_request.inbox_model,
             'res.users': fake_request.users_model,
-        }
+        })
         fake_request.httprequest = types.SimpleNamespace(
             headers={'X-Internal-Service-Key': 'dxlab-internal-service-secret'},
             data=b'',
@@ -177,13 +189,50 @@ class EventWebhookControllerTests(unittest.TestCase):
         fake_request.httprequest.headers = {}
         res = self.controller.receive_event()
         self.assertEqual(res['status'], 401)
+
         body = json.loads(res['body'])
         self.assertEqual(body['error'], 'UNAUTHORIZED')
-
         fake_request.httprequest.headers = {'X-Internal-Service-Key': 'wrong-key'}
-        res = self.controller.receive_event()
-        self.assertEqual(res['status'], 401)
+        self.assertEqual(self.controller.receive_event()['status'], 401)
 
+    def processing_event(self):
+        ticket = '11111111-1111-4111-8111-111111111111'
+        return {'event_id': '22222222-2222-4222-8222-222222222222', 'event_type': 'ticket.processing.v1',
+                'aggregate_id': ticket, 'aggregate_version': 3, 'payload': {'ticket_id': ticket,
+                'ticket_code': 'TCK-1', 'status': 'IN_PROGRESS', 'action': 'start', 'version': 3}}
+
+    def test_processing_first_does_not_suppress_assignment(self):
+        event = self.processing_event()
+        fake_request.httprequest.data = json.dumps(event).encode()
+        self.assertEqual(self.controller.receive_event()['status'], 200)
+        event.update(event_id='assignment-older', event_type='TICKET_ASSIGNED', aggregate_version=2)
+        event['payload']['assigned_sub'] = '11111111-1111-4111-8111-111111111111'
+        fake_request.httprequest.data = json.dumps(event).encode()
+        self.assertTrue(json.loads(self.controller.receive_event()['body'])['processed'])
+        self.assertEqual(len(fake_request.users_model.partner.messages), 1)
+
+    def test_processing_malformed_rejected_before_inbox(self):
+        import copy
+        mutations = [lambda e: e['payload'].pop('action'), lambda e: e['payload'].update(action=[]),
+                     lambda e: e['payload'].update(status=None), lambda e: e['payload'].update(version=True),
+                     lambda e: e.update(aggregate_version=4), lambda e: e['payload'].update(ticket_id='bad'),
+                     lambda e: e.update(event_id='bad'), lambda e: e['payload'].update(ticket_code=42),
+                     lambda e: e['payload'].update(extra='unexpected')]
+        for mutate in mutations:
+            event = copy.deepcopy(self.processing_event())
+            mutate(event)
+            fake_request.httprequest.data = json.dumps(event).encode()
+            self.assertEqual(self.controller.receive_event()['status'], 400)
+        self.assertEqual(fake_request.inbox_model.records, [])
+
+    def test_processing_duplicate_uses_savepoint_and_replays(self):
+        fake_request.httprequest.data = json.dumps(self.processing_event()).encode()
+        fake_request.inbox_model.raise_on_create = webhook_module.IntegrityError('duplicate')
+        self.assertTrue(json.loads(self.controller.receive_event()['body'])['replayed'])
+        self.assertEqual(fake_request.env.savepoints, 1)
+        fake_request.inbox_model.raise_on_create = None
+        self.assertEqual(self.controller.receive_event()['status'], 200)
+        self.assertTrue(json.loads(self.controller.receive_event()['body'])['replayed'])
     def test_bad_request_on_empty_or_invalid_json(self):
         fake_request.httprequest.data = b''
         res = self.controller.receive_event()

@@ -1,6 +1,8 @@
 import type { AttachmentRecord } from '../domain/attachment.js';
 import type { Principal } from './principal.js';
 import { hasOrganizationWideAccess, isGroupLead } from './principal.js';
+import { businessDeadline, businessMinutes, parseBusinessCalendar, type BusinessCalendar } from '../domain/business-calendar.js';
+import type { ProcessingState } from '../domain/ticket-workflow.js';
 
 export interface TicketListRow {
   id: string;
@@ -11,6 +13,7 @@ export interface TicketListRow {
   assignedSub: string | null;
   receivedAt: string;
   updatedAt: string;
+  processing?: ProcessingState;
 }
 
 export interface ScopedTicketRow extends TicketListRow {
@@ -27,6 +30,8 @@ export interface TicketListItem {
   provisionalType: string;
   status: string;
   slaDueAt: string | null;
+  slaOverdue: boolean;
+  slaElapsedMinutes: number;
   summary: string;
 }
 
@@ -34,6 +39,12 @@ export interface TicketDetail extends TicketListItem {
   description: string;
   groupId: string;
   assignedToMe: boolean;
+  version: number;
+  workflow: ProcessingState['workflow'];
+  steps: Array<ProcessingState['steps'][number] & { businessMinutes: number }>;
+  closedAt: string | null;
+  result: string | null;
+  allowedActions: string[];
   customer?: { name: string; phone: string; email: string };
   attachment?: Omit<AttachmentRecord, 'checksumSha256'>;
 }
@@ -76,14 +87,18 @@ function safeSummary(row: TicketListRow): string {
   return `Yêu cầu ${row.provisionalType}`;
 }
 
-function listDto(row: TicketListRow): TicketListItem {
+function listDto(row: TicketListRow, fallback: BusinessCalendar): TicketListItem {
+  const state = row.processing;
+  const calendar = state?.calendar ?? fallback;
+  const elapsed = businessMinutes(row.receivedAt, state?.closedAt ?? new Date(), calendar);
   return {
     id: row.id,
     code: row.code,
     provisionalType: row.provisionalType,
     status: row.status,
-    // Story 1.9 owns the business-calendar deadline; null is safer than exposing a false deadline.
-    slaDueAt: null,
+    slaDueAt: state?.slaDueAt ?? businessDeadline(row.receivedAt, 120, calendar),
+    slaOverdue: Boolean(state?.slaOverdue) || elapsed > 120,
+    slaElapsedMinutes: elapsed,
     summary: safeSummary(row),
   };
 }
@@ -92,6 +107,7 @@ export class ReadTicketsUseCase {
   constructor(
     private readonly store: TicketReadStore,
     private readonly audit: ReadAuditPort,
+    private readonly calendar: BusinessCalendar = parseBusinessCalendar(process.env.SLA_HOLIDAYS),
   ) {}
 
   async list(principal: Principal, query: { status?: string; limit?: number; offset?: number }, correlationId: string) {
@@ -112,7 +128,7 @@ export class ReadTicketsUseCase {
       correlationId,
       outcome: 'allowed',
     });
-    return { items: result.rows.map(listDto), total: result.total };
+    return { items: result.rows.map(row => listDto(row, this.calendar)), total: result.total };
   }
 
   async detail(principal: Principal, ticketId: string, correlationId: string): Promise<TicketDetail | null> {
@@ -126,6 +142,11 @@ export class ReadTicketsUseCase {
     });
     if (!row) return null;
     const sensitive = organizationWide || row.assignedSub === principal.sub;
+    const state = row.processing;
+    const canWrite = row.assignedSub === principal.sub && principal.groupIds.includes(row.groupId) && principal.scopes.includes('tickets:write') && row.status !== 'CLOSED';
+    const steps = state?.steps ?? [];
+    const current = steps.at(-1);
+    const allowedActions = !canWrite ? [] : row.status === 'WAITING' ? ['start'] : !current?.endedAt ? ['complete-step'] : steps.length === state?.workflow?.steps.length ? ['close'] : ['start-step'];
     await this.audit.record({
       actorSub: principal.sub,
       clientId: principal.clientId,
@@ -135,7 +156,13 @@ export class ReadTicketsUseCase {
       outcome: 'allowed',
     });
     return {
-      ...listDto(row),
+      ...listDto(row, this.calendar),
+      version: state?.version ?? 1,
+      workflow: state?.workflow ?? null,
+      steps: steps.map(step => ({...step, content: sensitive ? step.content : null, businessMinutes: businessMinutes(step.startedAt, step.endedAt ?? state?.closedAt ?? new Date(), state?.calendar ?? this.calendar)})),
+      closedAt: state?.closedAt ?? null,
+      result: sensitive ? state?.result ?? null : null,
+      allowedActions,
       description: row.description,
       groupId: row.groupId,
       assignedToMe: row.assignedSub === principal.sub,

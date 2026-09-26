@@ -1,14 +1,15 @@
 import type pg from 'pg';
 import type { ReadAuditPort, ScopedTicketRow, TicketListRow, TicketReadStore } from '../../application/read-tickets.js';
+import { processingState } from './ticket-processing-store.js';
 
 const SELECT_LIST = `
   SELECT t.id, t.code, t.provisional_type, t.status, t.group_id,
-         t.assigned_sub, t.received_at, t.updated_at
+         t.assigned_sub, t.received_at, t.updated_at, t.version, t.workflow_snapshot, t.calendar_snapshot, t.processing_steps, t.closed_at, t.processing_result, t.sla_due_at, t.sla_overdue
     FROM dx_core.tickets t`;
 
 const SELECT_TICKET = `
   SELECT t.id, t.code, t.provisional_type, t.status, t.description, t.group_id,
-         t.assigned_sub, t.received_at, t.updated_at,
+         t.assigned_sub, t.received_at, t.updated_at, t.version, t.workflow_snapshot, t.calendar_snapshot, t.processing_steps, t.closed_at, t.processing_result, t.sla_due_at, t.sla_overdue,
          c.full_name AS customer_name, c.phone_normalized AS customer_phone, c.email AS customer_email,
          a.id AS attachment_id, a.storage_key, a.display_name, a.size_bytes,
          a.detected_mime, a.checksum_sha256, a.created_at AS attachment_created_at
@@ -30,6 +31,7 @@ function mapRow(row: Record<string, any>): ScopedTicketRow {
     customerEmail: row.customer_email,
     receivedAt: row.received_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
+    processing: processingState(row),
     ...(row.attachment_id ? { attachment: {
       id: row.attachment_id,
       storageKey: row.storage_key,
@@ -52,6 +54,7 @@ function mapListRow(row: Record<string, any>): TicketListRow {
     assignedSub: row.assigned_sub,
     receivedAt: row.received_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
+    processing: processingState(row),
   };
 }
 

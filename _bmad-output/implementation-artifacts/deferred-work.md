@@ -16,3 +16,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-hoan-tat-moi-truong-ai-haystack.md`
   summary: Ghi lệnh unit test Haystack đầy đủ trong hồ sơ hoàn tất để người bảo trì có thể tái hiện kết quả `35 passed`.
   evidence: Blind review xác nhận Implementation Notes ghi kết quả unit test nhưng chưa ghi nguyên lệnh `uv run --no-cache --locked --extra test pytest -q`; đây là thiếu sót tài liệu mức thấp và việc sửa spec được workflow định tuyến sang deferred work.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-9-xu-ly-ticket-theo-quy-trinh-va-sla.md`
+  summary: Xác minh trực quan và bàn phím Odoo story 1.9 tại 320 CSS px và zoom 200%.
+  evidence: Browser inventory trống, createBrowserTab báo Browser is not available. HTML/CSS và controller tests đã kiểm tra; cần browser/Odoo runtime để kết luận layout, focus lỗi, giữ draft và xác nhận đóng có hoạt động trực tiếp.

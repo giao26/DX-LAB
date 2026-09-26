@@ -43,6 +43,37 @@ def client(opener):
 
 
 class PTicketClientTests(unittest.TestCase):
+    def test_processing_exchanges_write_scope_and_posts_version_and_key(self):
+        opener = SequenceOpener([({'access_token': 'write'},), ({'version': 8, 'status': 'IN_PROGRESS'},)])
+        result = client(opener).process_ticket('ticket-1', {'version': 7, 'action': 'start'}, 'command-key')
+        self.assertEqual(result['version'], 8)
+        self.assertEqual(parse.parse_qs(opener.requests[0][0].data.decode())['scope'], ['tickets:write'])
+        req = opener.requests[1][0]
+        self.assertEqual(req.get_method(), 'POST')
+        self.assertEqual(req.get_header('Idempotency-key'), 'command-key')
+        self.assertEqual(json.loads(req.data), {'version': 7, 'action': 'start'})
+
+    def test_processing_conflict_has_recovery_detail(self):
+        def opener(req, timeout):
+            if 'token' in req.full_url:
+                return FakeResponse({'access_token': 'write'})
+            raise urlerror.HTTPError(req.full_url, 409, 'Conflict', {}, io.BytesIO(b'{"detail":"Reload ticket"}'))
+        with self.assertRaises(MODULE.PTicketClientError) as raised:
+            client(opener).process_ticket('ticket-1', {'version': 1, 'action': 'start'}, 'key')
+        self.assertEqual(raised.exception.status_code, 409)
+        self.assertEqual(str(raised.exception), 'Reload ticket')
+
+    def test_processing_array_and_null_problem_preserve_recovery_error(self):
+        for problem in ([], None):
+            def opener(req, timeout):
+                if 'token' in req.full_url:
+                    return FakeResponse({'access_token': 'write'})
+                raise urlerror.HTTPError(req.full_url, 422, 'Invalid', {}, io.BytesIO(json.dumps(problem).encode()))
+            with self.assertRaises(MODULE.PTicketClientError) as raised:
+                client(opener).process_ticket('ticket-1', {'version': 1, 'action': 'start'}, 'key')
+            self.assertEqual(raised.exception.status_code, 422)
+            self.assertIn('tải lại', str(raised.exception))
+
     def test_paginates_all_items_and_exchanges_fresh_read_token_for_each_page(self):
         first = {'id': '1', 'code': 'T-1', 'provisionalType': 'Tư vấn', 'status': 'WAITING', 'slaDueAt': None, 'summary': 'Một'}
         second = {'id': '2', 'code': 'T-2', 'provisionalType': 'Tư vấn', 'status': 'WAITING', 'slaDueAt': None, 'summary': 'Hai'}

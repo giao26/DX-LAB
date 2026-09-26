@@ -11,6 +11,7 @@ import type { CreateTicketUseCase } from '../../application/create-ticket.js';
 import type { TicketRecord } from '../../domain/ticket.js';
 import type { IdentityVerifier } from '../../application/principal.js';
 import type { ReadTicketsUseCase } from '../../application/read-tickets.js';
+import type { ProcessTicketUseCase } from '../../application/process-ticket.js';
 import type { AttachmentStorage } from '../storage/filesystem-attachment-storage.js';
 
 export interface AppDependencies {
@@ -19,6 +20,7 @@ export interface AppDependencies {
   getPublicTicketStatus?: (id: string) => Promise<Pick<TicketRecord, 'id' | 'code' | 'status' | 'confirmationEmailStatus'> | null>;
   identityVerifier?: IdentityVerifier;
   readTickets?: ReadTicketsUseCase;
+  processTicket?: ProcessTicketUseCase;
   attachmentStorage?: AttachmentStorage;
 }
 
@@ -54,6 +56,7 @@ export function buildApp(opts: FastifyServerOptions = {}, dependencies: AppDepen
       getPublicTicketStatus: dependencies.getPublicTicketStatus,
       identityVerifier: dependencies.identityVerifier,
       readTickets: dependencies.readTickets,
+      processTicket: dependencies.processTicket,
       attachmentStorage: dependencies.attachmentStorage,
     });
   }

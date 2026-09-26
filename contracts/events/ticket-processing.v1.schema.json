@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dx-lab.example/contracts/events/ticket-processing.v1.schema.json",
+  "title": "Ticket processing committed payload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ticket_id", "ticket_code", "status", "action", "version"],
+  "properties": {
+    "ticket_id": {"type": "string", "format": "uuid"},
+    "ticket_code": {"type": "string"},
+    "status": {"enum": ["IN_PROGRESS", "CLOSED"]},
+    "action": {"enum": ["start", "start-step", "complete-step", "close"]},
+    "version": {"type": "integer", "minimum": 2}
+  }
+}

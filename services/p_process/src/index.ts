@@ -14,6 +14,8 @@ import { OidcIdentityVerifier } from './adapters/http/oidc-identity-verifier.js'
 import { FilesystemAttachmentStorage } from './adapters/storage/filesystem-attachment-storage.js';
 
 import { PostgresAssignmentStore } from './adapters/postgres/assignment-store.js';
+import { PostgresTicketProcessingStore, backfillTicketProcessing } from './adapters/postgres/ticket-processing-store.js';
+import { ProcessTicketUseCase } from './application/process-ticket.js';
 import { ProcessOutboxEventsUseCase, HttpOdooEventRelay } from './application/process-outbox-events.js';
 
 const port = Number(process.env.PORT) || 3000;
@@ -36,6 +38,7 @@ const server = buildApp({}, {
   getPublicTicketStatus: (id) => ticketStore.getPublicTicketStatus(id),
   identityVerifier: new OidcIdentityVerifier(),
   readTickets,
+  processTicket: new ProcessTicketUseCase(new PostgresTicketProcessingStore(pool)),
   attachmentStorage,
 });
 
@@ -83,6 +86,7 @@ server.addHook('onClose', async () => {
 async function start() {
   try {
     await runMigrations(pool);
+    await backfillTicketProcessing(pool);
     await server.listen({ port, host });
     server.log.info(`P Process core server listening on http://${host}:${port}`);
 

@@ -7,6 +7,7 @@
 
 import json
 import os
+from uuid import UUID
 
 try:
     from psycopg2 import IntegrityError
@@ -92,6 +93,23 @@ class DxEventWebhookController(http.Controller):
                 status=400,
             )
 
+        if event_type == 'ticket.processing.v1':
+            payload = data.get('payload')
+            try:
+                valid_uuid = lambda value: isinstance(value, str) and str(UUID(value)) == value.lower()
+                valid = (valid_uuid(event_id) and valid_uuid(data.get('aggregate_id'))
+                         and isinstance(payload, dict) and set(payload) == {'ticket_id', 'ticket_code', 'status', 'action', 'version'}
+                         and valid_uuid(payload.get('ticket_id')) and payload['ticket_id'] == data['aggregate_id']
+                         and isinstance(payload.get('ticket_code'), str)
+                         and payload.get('status') in ('IN_PROGRESS', 'CLOSED')
+                         and payload.get('action') in ('start', 'start-step', 'complete-step', 'close')
+                         and type(payload.get('version')) is int and payload['version'] >= 2
+                         and type(data.get('aggregate_version')) is int and payload['version'] == data['aggregate_version'])
+            except (ValueError, TypeError, AttributeError):
+                valid = False
+            if not valid:
+                return self._json_response({'error': 'BAD_REQUEST', 'message': 'Sự kiện xử lý không hợp lệ.'}, status=400)
+
         inbox_model = request.env['dx.event.inbox'].sudo()
 
         # 1. Deduplication check by event_id
@@ -105,7 +123,7 @@ class DxEventWebhookController(http.Controller):
             })
 
         # 2. Guard: Ignore events that are not TICKET_ASSIGNED
-        if event_type != 'TICKET_ASSIGNED':
+        if event_type not in ('TICKET_ASSIGNED', 'ticket.processing.v1'):
             try:
                 inbox_model.create({
                     'event_id': event_id,
@@ -140,21 +158,23 @@ class DxEventWebhookController(http.Controller):
         if aggregate_id:
             stale_event = inbox_model.search([
                 ('aggregate_id', '=', str(aggregate_id)),
+                ('event_type', '=', event_type),
                 ('status', '=', 'processed'),
                 ('aggregate_version', '>', aggregate_version),
             ], limit=1)
             if stale_event:
                 try:
-                    inbox_model.create({
-                        'event_id': event_id,
-                        'event_type': event_type,
-                        'aggregate_id': str(aggregate_id),
-                        'aggregate_version': aggregate_version,
-                        'status': 'ignored',
-                        'occurred_at': data.get('occurred_at'),
-                        'processed_at': fields.Datetime.now(),
-                        'error_message': 'Bỏ qua do aggregate_version cũ hơn sự kiện đã xử lý.',
-                    })
+                    with request.env.cr.savepoint():
+                        inbox_model.create({
+                            'event_id': event_id,
+                            'event_type': event_type,
+                            'aggregate_id': str(aggregate_id),
+                            'aggregate_version': aggregate_version,
+                            'status': 'ignored',
+                            'occurred_at': data.get('occurred_at'),
+                            'processed_at': fields.Datetime.now(),
+                            'error_message': 'Bỏ qua do aggregate_version cũ hơn sự kiện đã xử lý.',
+                        })
                 except IntegrityError:
                     return self._json_response({
                         'status': 'ok',
@@ -170,6 +190,20 @@ class DxEventWebhookController(http.Controller):
 
         # 4. Safe payload extraction
         payload = data.get('payload') if isinstance(data.get('payload'), dict) else {}
+        if event_type == 'ticket.processing.v1':
+            # Only minimal identity/version/status projection; processing notes stay in P.
+            safe_payload = {key: payload.get(key) for key in ('ticket_id', 'ticket_code', 'status', 'action', 'version')}
+            try:
+                with request.env.cr.savepoint():
+                    inbox_model.create({
+                        'event_id': event_id, 'event_type': event_type,
+                        'aggregate_id': str(aggregate_id), 'aggregate_version': aggregate_version,
+                        'payload': json.dumps(safe_payload), 'status': 'processed',
+                        'occurred_at': data.get('occurred_at'), 'processed_at': fields.Datetime.now(),
+                    })
+            except IntegrityError:
+                return self._json_response({'status': 'ok', 'replayed': True, 'event_id': event_id})
+            return self._json_response({'status': 'ok', 'processed': True, 'event_id': event_id})
         assigned_sub = payload.get('assigned_sub') or payload.get('assignedSub') or ''
         ticket_code = payload.get('ticket_code') or payload.get('ticketCode') or '—'
         ticket_id = payload.get('ticket_id') or payload.get('ticketId') or ''

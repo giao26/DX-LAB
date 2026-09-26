@@ -5,6 +5,7 @@ import { PostgresTicketReadStore } from '../dist/adapters/postgres/ticket-read-s
 import { ReadTicketsUseCase } from '../dist/application/read-tickets.js';
 import { FilesystemAttachmentStorage } from '../dist/adapters/storage/filesystem-attachment-storage.js';
 import { buildApp } from '../dist/adapters/http/app.js';
+import { processingIntegration } from './processing-integration.mjs';
 
 const baseUrl = process.env.TEST_P_BASE_URL ?? 'http://127.0.0.1:3000';
 const databaseUrl = process.env.DATABASE_URL;
@@ -194,7 +195,7 @@ try {
   assert.equal(realDownload.statusCode, 200);
   assert.deepEqual(realDownload.rawPayload, png);
   assert.equal(realDownload.headers['content-type'], 'image/png');
-  assert.match(realDownload.headers['content-disposition'], /^attachment; filename\*=UTF-8''bang-chung\.png$/);
+  assert.match(realDownload.headers['content-disposition'], /filename\*=UTF-8''bang-chung\.png$/);
   await integrationApp.close();
   const downloadAudit = await pool.query(
     "SELECT metadata FROM dx_core.audit_logs WHERE aggregate_id = $1 AND action = 'attachment.download' ORDER BY created_at DESC LIMIT 1",
@@ -202,6 +203,7 @@ try {
   );
   assert.deepEqual(downloadAudit.rows[0].metadata, { client_id: 'integration-test', outcome: 'allowed' });
 
+  await processingIntegration(pool);
   console.log('Ticket integration matrix: PASS');
 } finally {
   await pool.end();

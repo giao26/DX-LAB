@@ -44,12 +44,15 @@ class PTicketClient:
             raise PTicketClientError('Phản hồi token exchange không hợp lệ.', 503)
         return token
 
-    def _request(self, path, scopes, accept='application/json'):
+    def _request(self, path, scopes, accept='application/json', body=None, idempotency_key=None):
         token = self._exchange_token(scopes)
         req = request.Request(self.api_base + path, headers={
             'Authorization': 'Bearer ' + token,
             'Accept': accept,
-        })
+        }, data=json.dumps(body).encode() if body is not None else None)
+        if body is not None:
+            req.add_header('Content-Type', 'application/json')
+            req.add_header('Idempotency-Key', idempotency_key)
         try:
             return self._open(req, timeout=10)
         except urlerror.HTTPError as error:
@@ -59,6 +62,13 @@ class PTicketClient:
                 raise PTicketClientError('Ticket không tồn tại hoặc bạn không có quyền truy cập.', 404) from error
             if error.code == 400:
                 raise PTicketClientError('Yêu cầu không hợp lệ.', 400) from error
+            if error.code in (409, 422):
+                try:
+                    problem = json.load(error)
+                    detail = problem.get('detail') if isinstance(problem, dict) else None
+                except (ValueError, OSError):
+                    detail = None
+                raise PTicketClientError(detail or 'Hãy tải lại ticket và kiểm tra nội dung trước khi thử lại.', error.code) from error
             raise PTicketClientError('Dịch vụ ticket tạm thời không khả dụng.', 503) from error
         except OSError as error:
             raise PTicketClientError('Không thể tải ticket trong phạm vi trách nhiệm.', 503) from error
@@ -74,6 +84,19 @@ class PTicketClient:
         if not isinstance(value, dict):
             raise PTicketClientError('Dịch vụ ticket trả JSON không hợp lệ.', 502)
         return value
+
+    def process_ticket(self, ticket_uuid, body, idempotency_key):
+        try:
+            with self._request('/api/v1/tickets/' + parse.quote(ticket_uuid, safe='') + '/process',
+                               ('tickets:write',), body=body, idempotency_key=idempotency_key) as response:
+                value = json.load(response)
+            if not isinstance(value, dict):
+                raise ValueError('invalid response')
+            return value
+        except PTicketClientError:
+            raise
+        except (OSError, ValueError, TypeError) as error:
+            raise PTicketClientError('Không thể đọc kết quả xử lý. Hãy thử lại với cùng lệnh.', 502) from error
 
     def get_all_tickets(self):
         items = []

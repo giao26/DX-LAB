@@ -23,6 +23,14 @@ class FakeRequest:
     def make_response(body, status=200, headers=None):
         return {'body': body, 'status': status, 'headers': dict(headers or [])}
 
+    @staticmethod
+    def csrf_token():
+        return 'csrf-test'
+
+    @staticmethod
+    def redirect(location, code=303):
+        return {'status': code, 'location': location}
+
 
 fake_request = FakeRequest()
 http_module = types.ModuleType('odoo.http')
@@ -139,6 +147,52 @@ class TicketWorkspaceControllerTests(unittest.TestCase):
         response = self.controller.download_attachment('ticket-no-file')
         self.assertEqual(response['status'], 404)
         self.assertIn('Không thể tải ticket', response['body'])
+
+    def test_processing_form_csrf_close_confirmation_and_error_draft(self):
+        detail = self.client.get_detail('ticket-1')
+        detail.update(version=7, status='IN_PROGRESS', allowedActions=['close'], workflow={'steps': []}, steps=[])
+        rendered = self.controller._render_detail('ticket-1', detail)
+        self.assertIn('csrf-test', rendered['body'])
+        self.assertIn('name="confirmClose"', rendered['body'])
+        self.assertIn('không thể mở lại', rendered['body'])
+        detail['allowedActions'] = []
+        failed = self.controller._render_detail('ticket-1', detail, 'Conflict', {'content': '<draft>', 'result': 'summary'})
+        self.assertIn('&lt;draft&gt;', failed['body'])
+        self.assertIn('summary', failed['body'])
+
+    def test_post_passes_version_key_and_does_not_close_without_confirmation(self):
+        calls = []
+        self.client.process_ticket = lambda *args: calls.append(args)
+        success = self.controller.process_ticket('ticket-1', version='7', action='start', idempotencyKey='key')
+        self.assertEqual(success['status'], 303)
+        self.assertEqual(calls, [('ticket-1', {'version': 7, 'action': 'start'}, 'key')])
+        rejected = self.controller.process_ticket('ticket-1', version='7', action='close', result='draft', idempotencyKey='other')
+        self.assertEqual(rejected['status'], 422)
+        self.assertEqual(len(calls), 1)
+        self.assertIn('draft', rejected['body'])
+
+    def test_lost_response_replays_exact_command_when_detail_advanced_or_closed(self):
+        from html.parser import HTMLParser
+        class Inputs(HTMLParser):
+            def __init__(self):
+                super().__init__(); self.values = {}
+            def handle_starttag(self, tag, attrs):
+                attrs = dict(attrs)
+                if tag == 'input' and attrs.get('type') == 'hidden':
+                    self.values[attrs['name']] = attrs.get('value', '')
+        for action, status in [('complete-step', 'IN_PROGRESS'), ('close', 'CLOSED')]:
+            detail = self.client.get_detail('ticket-1')
+            detail.update(version=12, status=status, allowedActions=[] if status == 'CLOSED' else ['start-step'],
+                          steps=[{'id': '1', 'requiredContent': 'Notes', 'endedAt': '2026-09-25T00:00:00Z'}])
+            self.client.get_detail = lambda _id: detail
+            self.client.process_ticket = lambda *args: (_ for _ in ()).throw(service_module.PTicketClientError('Lost response', 503))
+            submitted = dict(version='7', action=action, stepId='1', content='exact draft', result='exact result', idempotencyKey='same-key', confirmClose='yes')
+            response = self.controller.process_ticket('ticket-1', **submitted)
+            inputs = Inputs(); inputs.feed(response['body'])
+            for key in ('version', 'action', 'stepId', 'idempotencyKey'):
+                self.assertEqual(inputs.values[key], submitted[key])
+            self.assertIn('exact draft', response['body'])
+            self.assertIn('exact result', response['body'])
 
 
 if __name__ == '__main__':

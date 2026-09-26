@@ -76,11 +76,12 @@ export class PostgresAssignmentStore implements IAssignmentStore, IOutboxEventSt
       );
 
       // Assign ticket
-      await dbClient.query(
+      const assignedTicket = await dbClient.query(
         `UPDATE dx_core.tickets
          SET assigned_sub = $1,
+             version = version + 1,
              updated_at = CURRENT_TIMESTAMP
-         WHERE id = $2::uuid`,
+         WHERE id = $2::uuid RETURNING version`,
         [assignedSub, ticket.id],
       );
 
@@ -95,8 +96,8 @@ export class PostgresAssignmentStore implements IAssignmentStore, IOutboxEventSt
       await dbClient.query(
         `INSERT INTO dx_core.outbox_events
           (event_type, aggregate_id, aggregate_version, actor_sub, correlation_id, causation_id, payload, status)
-         VALUES ('TICKET_ASSIGNED', $1, 1, 'system-assignment', $2, $3, $4, 'PENDING')`,
-        [ticket.id, correlationId, ticket.id, JSON.stringify(eventPayload)],
+         VALUES ('TICKET_ASSIGNED', $1, $5, 'system-assignment', $2, $3, $4, 'PENDING')`,
+        [ticket.id, correlationId, ticket.id, JSON.stringify(eventPayload), assignedTicket.rows[0]?.version ?? 2],
       );
 
       // Write immutable audit log
@@ -207,7 +208,7 @@ export class PostgresAssignmentStore implements IAssignmentStore, IOutboxEventSt
            last_attempted_at = CURRENT_TIMESTAMP
        WHERE event_id IN (
          SELECT event_id FROM dx_core.outbox_events
-         WHERE event_type = 'TICKET_ASSIGNED'
+         WHERE event_type IN ('TICKET_ASSIGNED', 'ticket.processing.v1')
            AND status IN ('PENDING', 'FAILED')
            AND retry_count < 3
            AND (last_attempted_at IS NULL OR last_attempted_at <= CURRENT_TIMESTAMP - (INTERVAL '1 second' * POWER(2, retry_count)))

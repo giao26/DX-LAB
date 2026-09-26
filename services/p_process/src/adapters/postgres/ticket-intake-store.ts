@@ -16,6 +16,7 @@ import {
 } from '../storage/filesystem-attachment-storage.js';
 import type { IAssignmentStore } from '../../application/ports.js';
 import { PostgresAssignmentStore } from './assignment-store.js';
+import { businessDeadline, parseBusinessCalendar } from '../../domain/business-calendar.js';
 
 type JsonValue = string | Record<string, unknown> | null;
 
@@ -194,6 +195,9 @@ export class PostgresTicketIntakeStore implements TicketIntakeStore {
           createdAt: attachmentRow.created_at.toISOString(),
         };
       }
+
+      const calendar = parseBusinessCalendar(process.env.SLA_HOLIDAYS);
+      await client.query(`UPDATE dx_core.tickets SET calendar_snapshot=$2, sla_due_at=$3 WHERE id=$1`, [row.id,JSON.stringify(calendar),businessDeadline(row.received_at,120,calendar)]);
 
       if (groupId) {
         const assignment = await this.assignmentStore.assignTicket(

@@ -32,7 +32,8 @@
       ]
     },
     { "name": "tickets:read", "protocol": "openid-connect", "attributes": { "include.in.token.scope": "true" } },
-    { "name": "tickets:download", "protocol": "openid-connect", "attributes": { "include.in.token.scope": "true" } }
+    { "name": "tickets:download", "protocol": "openid-connect", "attributes": { "include.in.token.scope": "true" } },
+    { "name": "tickets:write", "protocol": "openid-connect", "attributes": { "include.in.token.scope": "true" } }
   ],
   "clients": [
     {
@@ -64,7 +65,7 @@
       "directAccessGrantsEnabled": true,
       "redirectUris": ["https://localhost/*"],
       "webOrigins": ["https://localhost"],
-      "defaultClientScopes": ["basic", "tickets:read"],
+      "defaultClientScopes": ["basic", "tickets:read", "tickets:write"],
       "optionalClientScopes": ["tickets:download"],
       "protocolMappers": [
         {
@@ -92,7 +93,7 @@
       "directAccessGrantsEnabled": false,
       "redirectUris": ["https://localhost/auth_oauth/signin"],
       "webOrigins": ["https://localhost"],
-      "defaultClientScopes": ["basic", "tickets:read"],
+      "defaultClientScopes": ["basic", "tickets:read", "tickets:write"],
       "optionalClientScopes": ["tickets:download"],
       "protocolMappers": [
         {
@@ -119,7 +120,7 @@
       "serviceAccountsEnabled": true,
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
-      "defaultClientScopes": ["basic", "tickets:read"],
+      "defaultClientScopes": ["basic", "tickets:read", "tickets:write"],
       "optionalClientScopes": ["tickets:download"],
       "attributes": {
         "standard.token.exchange.enabled": "true",

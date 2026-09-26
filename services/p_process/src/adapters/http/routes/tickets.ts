@@ -3,6 +3,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { CreateTicketUseCase, IdempotencyConflictError, IdempotencyInProgressError } from '../../../application/create-ticket.js';
 import { AuthenticationError, IdentityProviderUnavailableError, type IdentityVerifier } from '../../../application/principal.js';
 import type { ReadTicketsUseCase } from '../../../application/read-tickets.js';
+import type { ProcessTicketUseCase } from '../../../application/process-ticket.js';
 import { TicketValidationError, type TicketRecord } from '../../../domain/ticket.js';
 import type { AttachmentStorage } from '../../storage/filesystem-attachment-storage.js';
 
@@ -12,6 +13,7 @@ export interface TicketRouteOptions {
   getPublicTicketStatus?: (id: string) => Promise<Pick<TicketRecord, 'id' | 'code' | 'status' | 'confirmationEmailStatus'> | null>;
   identityVerifier?: IdentityVerifier;
   readTickets?: ReadTicketsUseCase;
+  processTicket?: ProcessTicketUseCase;
   attachmentStorage?: AttachmentStorage;
 }
 
@@ -74,6 +76,22 @@ export const ticketRoutes: FastifyPluginAsync<TicketRouteOptions> = async (app, 
     if (!Number.isSafeInteger(parsed) || parsed < 0 || (maximum !== undefined && parsed > maximum)) return null;
     return parsed;
   };
+
+  app.post<{ Params: { ticketId: string } }>('/api/v1/tickets/:ticketId/process', async (request, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    try {
+      const principal = await authenticate(request.headers.authorization, 'tickets:write');
+      if (!UUID.test(request.params.ticketId)) return reply.status(404).send(notFound(request.url));
+      if (!options.processTicket) throw new IdentityProviderUnavailableError('Dịch vụ xử lý chưa sẵn sàng.');
+      const raw = request.headers['idempotency-key'];
+      const result = await options.processTicket.execute(principal, request.params.ticketId, request.body, Array.isArray(raw) ? raw[0] : raw, request.id);
+      if (result.replayed) reply.header('Idempotency-Replayed', 'true');
+      return reply.send(result.ticket);
+    } catch (error) {
+      if (error instanceof AuthenticationError || error instanceof IdentityProviderUnavailableError) return sendAuthError(reply, error, request.url);
+      throw error;
+    }
+  });
 
   app.get<{ Querystring: { status?: string; limit?: string; offset?: string } }>('/api/v1/tickets', async (request, reply) => {
     reply.header('Cache-Control', 'no-store');

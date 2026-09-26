@@ -7,6 +7,7 @@
 import { OutboxEventStatus, IdempotencyRecord, AuditLogRecord } from '../domain/types.js';
 import { NotificationRecord, NotificationStatus } from '../domain/notification.js';
 import type { AssignmentResult } from '../domain/assignment.js';
+export type { TicketProcessingStore, ProcessingCommand } from './process-ticket.js';
 
 export interface IOutboxPort {
   publishEvent<T>(

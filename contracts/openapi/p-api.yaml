@@ -190,6 +190,50 @@ paths:
             application/problem+json:
               schema: { $ref: '#/components/schemas/ProblemDetails' }
 
+  /api/v1/tickets/{ticketId}/process:
+    post:
+      summary: Xử lý ticket theo quy trình và đóng sau khi hoàn tất
+      operationId: processTicket
+      security:
+        - keycloakBearer: [tickets:write]
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, pattern: '^[A-Za-z0-9_.:-]{1,200}$' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [version, action]
+              properties:
+                version: { type: integer, minimum: 1 }
+                action: { enum: [start, start-step, complete-step, close] }
+                stepId: { type: string }
+                content: { type: string, minLength: 1, maxLength: 10000 }
+                result: { type: string, minLength: 1, maxLength: 10000 }
+      responses:
+        '200':
+          description: Lệnh commit hoặc replay, quyền được kiểm tra lại
+          headers:
+            Idempotency-Replayed: { schema: { type: boolean } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProcessingState' }
+        '401': { description: Token không hợp lệ }
+        '403': { description: Thiếu scope, quyền nhóm hoặc không là người phụ trách }
+        '404': { description: Không tìm thấy ticket }
+        '409': { description: Version cũ hoặc cùng khóa khác nội dung; tải lại }
+        '422': { description: Bước, thứ tự, nội dung hoặc kết quả không hợp lệ }
+        '503': { description: Dịch vụ xác thực chưa sẵn sàng }
+
   /api/v1/public/tickets/{ticketId}/status:
     get:
       summary: Polling trạng thái công khai tối thiểu
@@ -263,7 +307,21 @@ components:
           scopes:
             tickets:read: Đọc ticket theo phạm vi trách nhiệm
             tickets:download: Tải tệp của ticket được phép
+            tickets:write: Xử lý ticket do mình phụ trách trong nhóm
   schemas:
+    ProcessingState:
+      type: object
+      required: [status, version, workflow, calendar, steps, closedAt, result, slaDueAt, slaOverdue]
+      properties:
+        status: { enum: [WAITING, IN_PROGRESS, CLOSED] }
+        version: { type: integer, minimum: 1 }
+        workflow: { type: [object, 'null'] }
+        calendar: { type: [object, 'null'] }
+        steps: { type: array, items: { type: object } }
+        closedAt: { type: [string, 'null'], format: date-time }
+        result: { type: [string, 'null'] }
+        slaDueAt: { type: [string, 'null'], format: date-time }
+        slaOverdue: { type: boolean }
     PublicTicketStatus:
       type: object
       additionalProperties: false
@@ -285,6 +343,8 @@ components:
         status: { type: string, enum: [WAITING, IN_PROGRESS, CLOSED] }
         slaDueAt: { type: [string, 'null'], format: date-time }
         summary: { type: string }
+        slaOverdue: { type: boolean }
+        slaElapsedMinutes: { type: number }
 
     InternalTicketDetail:
       type: object
@@ -300,6 +360,14 @@ components:
         description: { type: string }
         groupId: { type: string }
         assignedToMe: { type: boolean }
+        slaOverdue: { type: boolean }
+        slaElapsedMinutes: { type: number }
+        version: { type: integer, minimum: 1 }
+        workflow: { type: [object, 'null'] }
+        steps: { type: array, items: { type: object } }
+        closedAt: { type: [string, 'null'], format: date-time }
+        result: { type: [string, 'null'] }
+        allowedActions: { type: array, items: { enum: [start, start-step, complete-step, close] } }
         customer:
           type: object
           additionalProperties: false

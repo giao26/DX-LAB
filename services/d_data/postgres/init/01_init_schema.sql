@@ -168,3 +168,12 @@ VALUES
     ('55555555-5555-4555-8555-555555555551', 'consulting', TRUE, 0),
     ('55555555-5555-4555-8555-555555555552', 'consulting', TRUE, 0)
 ON CONFLICT (sub) DO NOTHING;
+ALTER TABLE dx_core.tickets ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1 CHECK (version > 0);
+ALTER TABLE dx_core.tickets ADD COLUMN IF NOT EXISTS workflow_snapshot jsonb;
+ALTER TABLE dx_core.tickets ADD COLUMN IF NOT EXISTS calendar_snapshot jsonb;
+ALTER TABLE dx_core.tickets ADD COLUMN IF NOT EXISTS processing_steps jsonb NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE dx_core.tickets ADD COLUMN IF NOT EXISTS closed_at timestamptz;
+ALTER TABLE dx_core.tickets ADD COLUMN IF NOT EXISTS processing_result text;
+ALTER TABLE dx_core.tickets ADD COLUMN IF NOT EXISTS sla_due_at timestamptz;
+ALTER TABLE dx_core.tickets ADD COLUMN IF NOT EXISTS sla_overdue boolean NOT NULL DEFAULT false;
+UPDATE dx_core.tickets SET closed_at = updated_at WHERE status = 'CLOSED' AND closed_at IS NULL;
