@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-19-2026 15:15
-last_updated: 09-26-2026 23:17
+last_updated: 09-26-2026 23:58
 project: DX-LAB
 project_key: NOKEY
 tracking_system: file-system
@@ -53,7 +53,7 @@ development_status:
   epic-2-retrospective: optional
 
   epic-3: in-progress
-  3-1-người-quản-lý-xem-bộ-chỉ-số-thống-nhất-theo-đúng-phạm-vi: review
+  3-1-người-quản-lý-xem-bộ-chỉ-số-thống-nhất-theo-đúng-phạm-vi: done
   3-2-giám-đốc-theo-dõi-và-khoan-sâu-trên-dashboard-d: backlog
   3-3-dashboard-xuất-dữ-liệu-sao-lưu-mỗi-ngày: backlog
   epic-3-retrospective: optional
