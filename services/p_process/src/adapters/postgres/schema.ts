@@ -5,7 +5,8 @@
  * License: AGPL-3.0
  */
 
-import { pgSchema, uuid, varchar, integer, timestamp, jsonb, text, index, boolean, date, unique } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { pgSchema, uuid, varchar, integer, timestamp, jsonb, text, index, boolean, date, unique, check } from 'drizzle-orm/pg-core';
 
 export const dxCoreSchema = pgSchema('dx_core');
 
@@ -29,7 +30,6 @@ export const auditLogs = dxCoreSchema.table('audit_logs', {
   index('idx_audit_logs_occurred_at').on(table.occurredAt),
   index('idx_audit_logs_aggregate').on(table.aggregateType, table.aggregateId)
 ]);
-
 /**
  * Transactional Outbox Events Table (AD-3, AD-21)
  */
@@ -177,7 +177,6 @@ export const resources = dxCoreSchema.table('resources', {
   unique('uq_resources_code_version').on(table.code, table.version),
 ]);
 
-
 export const announcements = dxCoreSchema.table('announcements', {
   id: uuid('id').defaultRandom().primaryKey(),
   title: varchar('title', { length: 500 }).notNull(),
@@ -188,6 +187,10 @@ export const announcements = dxCoreSchema.table('announcements', {
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
+  check('announcements_scope_check', sql`${table.scope} IN ('company', 'group')`),
+  check('announcements_scope_target_check', sql`(${table.scope} = 'company' AND ${table.targetGroup} IS NULL) OR (${table.scope} = 'group' AND NULLIF(BTRIM(${table.targetGroup}), '') IS NOT NULL)`),
+  check('announcements_title_not_blank_check', sql`NULLIF(BTRIM(${table.title}), '') IS NOT NULL`),
+  check('announcements_publication_window_check', sql`${table.expiresAt} IS NULL OR ${table.expiresAt} > ${table.publishedAt}`),
   index('idx_announcements_scope').on(table.scope),
   index('idx_announcements_target_group').on(table.targetGroup),
 ]);

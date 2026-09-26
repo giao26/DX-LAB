@@ -398,34 +398,39 @@ paths:
 
   /api/v1/announcements:
     get:
-      summary: List announcements visible to the current user
+      summary: Liệt kê thông báo trong phạm vi của nhân viên hiện tại
       operationId: listAnnouncements
       security:
         - keycloakBearer: [portal:read]
-      parameters:
-        - name: groups
-          in: query
-          schema:
-            type: string
-          description: Comma-separated list of group names for scope filtering
       responses:
         '200':
-          description: List of announcements
+          description: Danh sách thông báo toàn công ty và nhóm được phép xem
           content:
             application/json:
               schema:
                 type: object
+                additionalProperties: false
+                required: [data]
                 properties:
                   data:
                     type: array
                     items:
                       $ref: '#/components/schemas/Announcement'
         '401':
-          description: Unauthorized
+          description: Thiếu hoặc sai bearer token
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetails'
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+        '403':
+          description: Thiếu scope portal:read hoặc tài khoản không có quyền
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+        '503':
+          description: Dịch vụ thông báo hoặc xác thực tạm thời không khả dụng
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
 
   /api/v1/resources/ai/retrieve:
     get:
@@ -624,6 +629,8 @@ components:
         createdAt: { type: string, format: date-time }
     Announcement:
       type: object
+      additionalProperties: false
+      required: [id, title, body, scope, target_group, published_at]
       properties:
         id:
           type: string
@@ -636,8 +643,7 @@ components:
           type: string
           enum: [company, group]
         target_group:
-          type: string
-          nullable: true
+          type: [string, 'null']
         published_at:
           type: string
           format: date-time

@@ -129,6 +129,17 @@ test('mọi phản hồi introspection không thành công đều là dependency
   );
 });
 
+test('giữ tên nhóm Unicode nhưng loại ký tự phân cách query nguy hiểm', async (t) => {
+  mockIdp(t, validClaims, { groups: [
+    { name: '  Kỹ thuật  ', path: '/Khối/Nhóm sai' },
+    { path: '/Công ty/  Nhân sự  ' },
+    { path: '/group,khác' },
+    { path: '/group&admin=true' },
+  ] });
+  const principal = await new OidcIdentityVerifier(config).verify('Bearer opaque', 'tickets:read');
+  assert.deepEqual(principal.groupIds, ['Kỹ thuật', 'Nhân sự']);
+});
+
 test('Keycloak group lookup follows every page', async (t) => {
   const originalFetch = globalThis.fetch;
   const groupCalls = [];

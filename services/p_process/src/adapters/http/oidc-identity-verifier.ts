@@ -141,8 +141,16 @@ export class OidcIdentityVerifier implements IdentityVerifier {
     const groupIds = Array.isArray(groupValues) ? groupValues.flatMap((value) => {
       if (!value || typeof value !== 'object') return [];
       const group = value as { path?: unknown; name?: unknown };
-      const raw = typeof group.path === 'string' ? group.path.replace(/^\//, '') : group.name;
-      return typeof raw === 'string' && /^[a-zA-Z0-9_.:-]{1,100}$/.test(raw) ? [raw] : [];
+      const name = typeof group.name === 'string' ? group.name.trim() : '';
+      const pathSegment = typeof group.path === 'string'
+        ? group.path.split('/').filter(Boolean).at(-1)?.trim() ?? ''
+        : '';
+      const raw = name || pathSegment;
+      return typeof raw === 'string'
+        && /^[\p{L}\p{N}\p{M} _.:-]{1,100}$/u.test(raw)
+        && raw.trim().length > 0
+        ? [raw]
+        : [];
     }) : [];
     if (roles.length === 0) throw new AuthenticationError('Không có vai trò được hỗ trợ.', 403);
     return { sub: claims.sub, clientId: claims.client_id, scopes, roles, groupIds };

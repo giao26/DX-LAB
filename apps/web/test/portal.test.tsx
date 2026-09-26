@@ -1,7 +1,9 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';
-vi.mock('../lib/portal', () => ({ requirePortal: vi.fn(async () => ({ csrf:'test' })) }));
+vi.mock('../lib/portal', () => ({ requirePortal: vi.fn(async () => ({ csrf:'test', token:'test-token' })) }));
+vi.mock('../lib/announcements', () => ({ fetchAnnouncements: vi.fn(async () => ({ data: [] })) }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }), redirect: vi.fn() }));
 import PortalPage from '../app/portal/page';
 import DashboardPage from '../app/portal/dashboard/page';
 import HumanPage from '../app/portal/h/page';
