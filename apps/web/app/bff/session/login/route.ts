@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookieOptions, LOGIN_COOKIE, startLogin } from '../../../../lib/session';
+import { sessionErrorResponse } from '../../../../lib/session-error-response';
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,5 +9,5 @@ export async function GET(request: NextRequest) {
     response.headers.set('Cache-Control', 'private, no-store');
     response.cookies.set(LOGIN_COOKIE, login.cookie, { ...cookieOptions, maxAge: 300 });
     return response;
-  } catch { return NextResponse.redirect(new URL('/bff/session/error?status=503', request.url)); }
+  } catch { return sessionErrorResponse(503); }
 }
