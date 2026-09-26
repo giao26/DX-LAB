@@ -8,11 +8,13 @@ import Fastify, { FastifyError, FastifyInstance, FastifyServerOptions } from 'fa
 import { healthRoutes } from './routes/health.js';
 import { ticketRoutes } from './routes/tickets.js';
 import { identityRoutes } from './routes/identity.js';
+import { resourcesRoutes } from './routes/resources.js';
 import type { CreateTicketUseCase } from '../../application/create-ticket.js';
 import type { TicketRecord } from '../../domain/ticket.js';
 import type { IdentityVerifier } from '../../application/principal.js';
 import type { ReadTicketsUseCase } from '../../application/read-tickets.js';
 import type { ProcessTicketUseCase } from '../../application/process-ticket.js';
+import type { ReadResourcesUseCase } from '../../application/read-resources.js';
 import type { AttachmentStorage } from '../storage/filesystem-attachment-storage.js';
 
 export interface AppDependencies {
@@ -22,6 +24,7 @@ export interface AppDependencies {
   identityVerifier?: IdentityVerifier;
   readTickets?: ReadTicketsUseCase;
   processTicket?: ProcessTicketUseCase;
+  readResources?: ReadResourcesUseCase;
   attachmentStorage?: AttachmentStorage;
 }
 
@@ -60,6 +63,12 @@ export function buildApp(opts: FastifyServerOptions = {}, dependencies: AppDepen
       readTickets: dependencies.readTickets,
       processTicket: dependencies.processTicket,
       attachmentStorage: dependencies.attachmentStorage,
+    });
+  }
+  if (dependencies.readResources && dependencies.identityVerifier) {
+    app.register(resourcesRoutes, {
+      readResources: dependencies.readResources,
+      identityVerifier: dependencies.identityVerifier,
     });
   }
 

@@ -5,7 +5,7 @@
  * License: AGPL-3.0
  */
 
-import { pgSchema, uuid, varchar, integer, timestamp, jsonb, text, index, boolean } from 'drizzle-orm/pg-core';
+import { pgSchema, uuid, varchar, integer, timestamp, jsonb, text, index, boolean, date, unique } from 'drizzle-orm/pg-core';
 
 export const dxCoreSchema = pgSchema('dx_core');
 
@@ -156,4 +156,25 @@ export const staffRoster = dxCoreSchema.table('staff_roster', {
     table.sub,
   ),
 ]);
+
+export const resources = dxCoreSchema.table('resources', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  code: varchar('code', { length: 50 }).notNull(),
+  type: varchar('type', { length: 20 }).notNull(),
+  title: varchar('title', { length: 255 }).notNull(),
+  status: varchar('status', { length: 20 }).default('draft').notNull(),
+  version: varchar('version', { length: 20 }).default('1.0.0').notNull(),
+  effectiveDate: date('effective_date').defaultNow().notNull(),
+  approverName: varchar('approver_name', { length: 120 }),
+  publishedAt: timestamp('published_at', { withTimezone: true }),
+  summary: text('summary').default('').notNull(),
+  content: text('content').default('').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_resources_status_effective').on(table.status, table.effectiveDate),
+  index('idx_resources_type_status').on(table.type, table.status),
+  unique('uq_resources_code_version').on(table.code, table.version),
+]);
+
 

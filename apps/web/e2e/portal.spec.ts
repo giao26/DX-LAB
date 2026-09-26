@@ -57,3 +57,74 @@ for (const hash of ['#]','#unknown']) test(`Dashboard heading fallback for ${has
   await login(page,'director'); await page.goto(`/portal/dashboard${hash}`);
   await expect(page.getByRole('heading',{name:'Dashboard Giám đốc'})).toBeFocused();
 });
+
+test('Resources library: navigation from H, search, filter, detail, draft rejection and WCAG', async ({page}) => {
+  await login(page, 'employee');
+  await page.goto('/portal/h');
+  await page.getByRole('link', { name: 'Mở Resources' }).click();
+  await expect(page).toHaveURL('http://localhost:3100/portal/resources');
+  await expect(page.getByRole('heading', { level: 1, name: 'Resources — Tri thức công ty' })).toBeVisible();
+
+  // Initial list checks
+  await expect(page.getByText('SOP-TKT-001')).toBeVisible();
+  await expect(page.getByText('Quy trình tiếp nhận và phân công ticket')).toBeVisible();
+  await expect(page.getByText('FAQ-GEN-001')).toBeVisible();
+
+  // Filter by type: SOP
+  await page.getByRole('link', { name: 'SOP (Quy trình)' }).click();
+  await expect(page).toHaveURL(/type=sop/);
+  await expect(page.getByText('SOP-TKT-001')).toBeVisible();
+  await expect(page.getByText('FAQ-GEN-001')).toHaveCount(0);
+
+  // Filter by type: FAQ
+  await page.getByRole('link', { name: 'FAQ (Hỏi đáp)' }).click();
+  await expect(page).toHaveURL(/type=faq/);
+  await expect(page.getByText('FAQ-GEN-001')).toBeVisible();
+  await expect(page.getByText('SOP-TKT-001')).toHaveCount(0);
+
+  // Reset to All
+  await page.getByRole('link', { name: 'Tất cả' }).click();
+  await expect(page.getByText('SOP-TKT-001')).toBeVisible();
+  await expect(page.getByText('FAQ-GEN-001')).toBeVisible();
+
+  // Search keyword
+  await page.getByRole('searchbox', { name: 'Tìm kiếm tài liệu' }).fill('bảo hành');
+  await page.getByRole('button', { name: 'Tìm kiếm' }).click();
+  await expect(page).toHaveURL(/search=b%E1%BA%A3o\+h%C3%A0nh|search=b%E1%BA%A3o%20h%C3%A0nh/);
+  await expect(page.getByText('SOP-WAR-001')).toBeVisible();
+  await expect(page.getByText('SOP-TKT-001')).toHaveCount(0);
+
+  // Search with no results -> empty state
+  await page.getByRole('searchbox', { name: 'Tìm kiếm tài liệu' }).fill('khongtontai999');
+  await page.getByRole('button', { name: 'Tìm kiếm' }).click();
+  await expect(page.getByRole('heading', { level: 2, name: 'Không tìm thấy tài liệu phù hợp' })).toBeVisible();
+  await page.getByRole('link', { name: 'Xóa bộ lọc' }).click();
+  await expect(page.getByText('SOP-TKT-001')).toBeVisible();
+
+  // View detail
+  await page.getByRole('link', { name: 'Quy trình tiếp nhận và phân công ticket' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Quy trình tiếp nhận và phân công ticket' })).toBeVisible();
+  await expect(page.getByText('Chi tiết quy trình tiếp nhận và phân công ticket.')).toBeVisible();
+
+  // Back to resources
+  await page.getByRole('link', { name: '← Quay lại Thư viện Resources' }).first().click();
+  await expect(page).toHaveURL('http://localhost:3100/portal/resources');
+
+  // Direct access to draft ID is rejected
+  await page.goto('/portal/resources/60000000-0000-4000-8000-000000000004');
+  await expect(page.getByRole('heading', { level: 1, name: 'Tài liệu không khả dụng' })).toBeVisible();
+  await expect(page.getByText('Không tìm thấy tài liệu')).toBeVisible();
+
+  // Accessibility and reflow test at 320px
+  await page.goto('/portal/resources');
+  await page.setViewportSize({ width: 320, height: 700 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+  await page.evaluate(() => { document.documentElement.style.zoom = '2'; });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  await page.evaluate(() => { document.documentElement.style.zoom = ''; });
+
+  const a11y = await new AxeBuilder({ page }).analyze();
+  expect(a11y.violations).toEqual([]);
+});
+

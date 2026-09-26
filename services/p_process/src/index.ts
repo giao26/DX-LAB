@@ -18,6 +18,9 @@ import { PostgresTicketProcessingStore, backfillTicketProcessing } from './adapt
 import { ProcessTicketUseCase } from './application/process-ticket.js';
 import { ProcessOutboxEventsUseCase, HttpOdooEventRelay } from './application/process-outbox-events.js';
 
+import { PostgresResourceStore } from './adapters/postgres/resource-store.js';
+import { ReadResourcesUseCase } from './application/read-resources.js';
+
 const port = Number(process.env.PORT) || 3000;
 const host = process.env.HOST || '0.0.0.0';
 
@@ -27,6 +30,8 @@ const assignmentStore = new PostgresAssignmentStore(pool);
 const ticketStore = new PostgresTicketIntakeStore(pool, attachmentStorage, undefined, assignmentStore);
 const ticketReadStore = new PostgresTicketReadStore(pool);
 const readTickets = new ReadTicketsUseCase(ticketReadStore, ticketReadStore);
+const resourceStore = new PostgresResourceStore(pool);
+const readResources = new ReadResourcesUseCase(resourceStore);
 const notificationStore = new PostgresNotificationStore(pool);
 const mailer = new SmtpMailer();
 const createTicket = new CreateTicketUseCase(ticketStore);
@@ -39,6 +44,7 @@ const server = buildApp({}, {
   identityVerifier: new OidcIdentityVerifier(),
   readTickets,
   processTicket: new ProcessTicketUseCase(new PostgresTicketProcessingStore(pool)),
+  readResources,
   attachmentStorage,
 });
 

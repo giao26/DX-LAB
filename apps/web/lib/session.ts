@@ -26,7 +26,11 @@ function sweep<T extends { expires: number }>(store: Map<string, T>) {
   if (store.size >= 10000) throw new SessionError(503);
 }
 export function safeReturn(value: string | null): string {
-  return value && /^\/portal(?:\/(?:h|p|resources|dashboard))?(?:\?section=[di])?(?:#[di])?$/.test(value) ? value : '/portal';
+  if (!value) return '/portal';
+  if (/^\/portal(?:\/(?:h|p))?$/.test(value)) return value;
+  if (/^\/portal\/dashboard(?:\?section=[di])?(?:#[di])?$/.test(value)) return value;
+  if (/^\/portal\/resources(?:\/[a-zA-Z0-9_-]+)?(?:\?[a-zA-Z0-9_=&%+-]+)?$/.test(value)) return value;
+  return '/portal';
 }
 export function signId(id: string): string { return `${id}.${createHmac('sha256', config().secret).update(id).digest('base64url')}`; }
 function readId(cookie: string | undefined) {

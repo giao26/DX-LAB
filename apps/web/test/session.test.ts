@@ -82,6 +82,18 @@ test('online membership revocation and outage fail closed', async () => {
   await expect(currentIdentity({ sub:'staff', token:'opaque', csrf:'x', expires:Date.now()+1000 })).rejects.toMatchObject({ status:503 });
 });
 test('return URL only permits known internal destinations', () => { for (const value of ['https://evil.test','//evil.test','/portal/../evil','/portal?next=evil']) expect(safeReturn(value)).toBe('/portal'); });
+test('safeReturn permits /portal/resources paths and queries including +', () => {
+  for (const valid of [
+    '/portal/resources',
+    '/portal/resources/SOP-TKT-001',
+    '/portal/resources/60000000-0000-4000-8000-000000000001',
+    '/portal/resources?type=sop',
+    '/portal/resources?search=quy+trinh+bao+hanh',
+    '/portal/resources?type=sop&search=ticket%20intake',
+  ]) {
+    expect(safeReturn(valid)).toBe(valid);
+  }
+});
 test('safe error page offers an explicit fresh sign-in flow',async()=>{
   const response=errorPage(new NextRequest('https://web.test/bff/session/error?status=503&returnTo=https://evil.test'));
   expect(response.status).toBe(503);expect(await response.text()).toContain('href="/bff/session/login?returnTo=%2Fportal"');
